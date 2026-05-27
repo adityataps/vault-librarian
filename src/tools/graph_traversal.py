@@ -16,30 +16,34 @@ from src.storage.models import Note, NoteFilter, Wikilink
 def _run_coroutine_sync(coro: Any) -> Any:
     try:
         loop = asyncio.get_event_loop()
-        return loop.run_until_complete(coro)
+        if not loop.is_running():
+            return loop.run_until_complete(coro)
     except RuntimeError:
         pass
 
     try:
-        loop = asyncio.new_event_loop()
+        new_loop = asyncio.new_event_loop()
         try:
-            return loop.run_until_complete(coro)
+            return new_loop.run_until_complete(coro)
         finally:
-            loop.close()
-    except RuntimeError:
+            new_loop.close()
+    except RuntimeError as exc:
+        if "another loop is running" not in str(exc).casefold():
+            raise
+
         result: dict[str, Any] = {}
         error: dict[str, BaseException] = {}
 
         def _runner() -> None:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
+            thread_loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(thread_loop)
             try:
-                result["value"] = loop.run_until_complete(coro)
-            except BaseException as exc:
-                error["value"] = exc
+                result["value"] = thread_loop.run_until_complete(coro)
+            except BaseException as runner_exc:
+                error["value"] = runner_exc
             finally:
                 asyncio.set_event_loop(None)
-                loop.close()
+                thread_loop.close()
 
         thread = threading.Thread(target=_runner, daemon=True)
         thread.start()
@@ -163,7 +167,7 @@ class GraphTraversalTool(BaseTool):
         return by_path, outgoing, incoming, has_any_outgoing
 
     async def _find_orphans(self) -> str:
-        by_path, outgoing, incoming, has_any_outgoing = await self._load_graph()
+        by_path, _outgoing, incoming, has_any_outgoing = await self._load_graph()
         orphans = [
             note
             for path, note in sorted(by_path.items(), key=lambda item: item[1].title.casefold())

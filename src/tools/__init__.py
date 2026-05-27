@@ -1,5 +1,6 @@
 """CrewAI tools for vault agents."""
 
+from .graph_traversal import GraphTraversalTool
 from .note_parser import (
     compute_hash,
     extract_wikilinks,
@@ -8,7 +9,6 @@ from .note_parser import (
     update_frontmatter,
 )
 from .vector_search import VectorSearchTool
-from .graph_traversal import GraphTraversalTool
 
 __all__ = [
     "parse_note",

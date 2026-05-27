@@ -76,17 +76,19 @@ class LLMSettings(BaseSettings):
     @field_validator("copilot_api_key")
     @classmethod
     def validate_copilot_key(cls, v: str | None, info) -> str | None:
-        """Validate GitHub token is set if copilot is default provider."""
-        # Skip validation during migrations or if not enabled
-        if not info.data.get("copilot_enabled", True):
-            return v
-        # Only require key if copilot is the default provider
-        if info.data.get("default_provider") == "copilot" and not v:
-            # Allow empty in development/migration scenarios
-            import os
-            if os.getenv("SKIP_LLM_VALIDATION"):
-                return v
-            raise ValueError("GITHUB_TOKEN required when copilot is default provider")
+        """Warn (never hard-fail) when GITHUB_TOKEN is missing at config load time.
+
+        The provider itself will raise a clear error at first use if the key
+        is still missing then.  Hard-failing here prevents commands like
+        ``vault-crawler status`` or ``vault-crawler migrate`` from running even
+        when the user just hasn't set the token yet.
+        """
+        if not v and info.data.get("default_provider") == "copilot":
+            import logging
+            logging.getLogger(__name__).warning(
+                "GITHUB_TOKEN is not set — Copilot provider will be unavailable. "
+                "Set GITHUB_TOKEN or change DEFAULT_LLM_PROVIDER in your .env."
+            )
         return v
 
 
@@ -155,7 +157,7 @@ class Settings(BaseSettings):
     database: DatabaseSettings = Field(default_factory=DatabaseSettings)
     redis: RedisSettings = Field(default_factory=RedisSettings)
     llm: LLMSettings = Field(default_factory=LLMSettings)
-    vault: VaultSettings
+    vault: VaultSettings = Field(default_factory=VaultSettings)
     scheduler: SchedulerSettings = Field(default_factory=SchedulerSettings)
     jira: JiraSettings = Field(default_factory=JiraSettings)
 

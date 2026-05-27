@@ -56,9 +56,12 @@ else
 fi
 
 # Start services
+# --force-recreate ensures idempotent runs: if containers already exist from a
+# previous session, they are replaced rather than leaving a "proxy already running"
+# conflict caused by the rootless network proxy still being bound.
 echo ""
 echo "Starting vault-crawler infrastructure..."
-$COMPOSE_CMD "${PROFILES[@]+"${PROFILES[@]}"}" up -d "$@"
+$COMPOSE_CMD "${PROFILES[@]+"${PROFILES[@]}"}" up -d --force-recreate "$@"
 
 # Wait for Postgres to be healthy
 echo ""

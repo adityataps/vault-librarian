@@ -77,7 +77,15 @@ class LLMSettings(BaseSettings):
     @classmethod
     def validate_copilot_key(cls, v: str | None, info) -> str | None:
         """Validate GitHub token is set if copilot is default provider."""
+        # Skip validation during migrations or if not enabled
+        if not info.data.get("copilot_enabled", True):
+            return v
+        # Only require key if copilot is the default provider
         if info.data.get("default_provider") == "copilot" and not v:
+            # Allow empty in development/migration scenarios
+            import os
+            if os.getenv("SKIP_LLM_VALIDATION"):
+                return v
             raise ValueError("GITHUB_TOKEN required when copilot is default provider")
         return v
 

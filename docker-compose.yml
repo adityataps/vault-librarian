@@ -5,16 +5,16 @@ services:
     image: pgvector/pgvector:pg16
     container_name: vault-crawler-postgres
     environment:
-      POSTGRES_USER: vault_crawler
+      POSTGRES_USER: ${POSTGRES_USER:-vault_crawler}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-vault_crawler_dev}
-      POSTGRES_DB: vault_crawler
+      POSTGRES_DB: ${POSTGRES_DB:-vault_crawler}
     ports:
-      - "5432:5432"
+      - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - ./docker-volumes/postgres:/var/lib/postgresql/data
       - ./scripts/postgres-init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U vault_crawler -d vault_crawler"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-vault_crawler} -d ${POSTGRES_DB:-vault_crawler}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -24,9 +24,9 @@ services:
   redis:
     image: redis:7-alpine
     container_name: vault-crawler-redis
-    command: redis-server --appendonly yes
+    command: redis-server --appendonly yes ${REDIS_PASSWORD:+--requirepass $REDIS_PASSWORD}
     ports:
-      - "6379:6379"
+      - "${REDIS_PORT:-6379}:6379"
     volumes:
       - ./docker-volumes/redis:/data
     healthcheck:
@@ -37,7 +37,7 @@ services:
     networks:
       - vault-crawler-net
     profiles:
-      - with-redis
+      - redis
 
   ollama:
     image: ollama/ollama:latest
@@ -46,23 +46,26 @@ services:
       - "11434:11434"
     volumes:
       - ./docker-volumes/ollama:/root/.ollama
+    environment:
+      - OLLAMA_MODELS=${OLLAMA_MODELS:-llama3.2}
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
       interval: 30s
       timeout: 10s
       retries: 3
+      start_period: 60s
     networks:
       - vault-crawler-net
     profiles:
-      - with-ollama
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
-    # Comment out the deploy section above if no GPU available
+      - ollama
+    # Uncomment the deploy section below if you have NVIDIA GPU
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu]
 
 networks:
   vault-crawler-net:

@@ -23,14 +23,31 @@ Edit `.env` with your settings:
 
 ### 3. Start Infrastructure
 
-**With Redis and Ollama:**
+Use the provided startup script which automatically enables services based on your `.env`:
+
 ```bash
-docker compose --profile with-redis --profile with-ollama up -d
+./scripts/start-services.sh
 ```
 
-**Minimal (Postgres only):**
+The script will:
+- Start Postgres (always)
+- Start Redis if `ENABLE_REDIS=true`
+- Start Ollama if `ENABLE_OLLAMA=true`
+- Auto-pull Ollama models specified in `OLLAMA_MODELS`
+
+**Manual Docker Compose:**
 ```bash
+# Minimal (Postgres only)
 docker compose up -d
+
+# With Redis
+docker compose --profile redis up -d
+
+# With Ollama
+docker compose --profile ollama up -d
+
+# Everything
+docker compose --profile redis --profile ollama up -d
 ```
 
 ### 4. Install Dependencies

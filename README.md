@@ -80,8 +80,26 @@ uv run alembic upgrade head
 ### 6. Start the Service
 
 ```bash
-uv run python -m src.main serve
+uv run vault-crawler serve
 ```
+
+Or with explicit options:
+
+```bash
+uv run vault-crawler serve --host 0.0.0.0 --port 8000
+```
+
+### CLI Commands
+
+| Command | Description |
+|---|---|
+| `vault-crawler serve` | Start the API server + scheduler + file watcher |
+| `vault-crawler scan` | Scan vault and print a note summary |
+| `vault-crawler index` | Upsert all vault notes into storage |
+| `vault-crawler migrate` | Run Alembic database migrations |
+| `vault-crawler status` | Check connectivity of all components |
+
+Run `vault-crawler <command> --help` for per-command options.
 
 ## Architecture
 

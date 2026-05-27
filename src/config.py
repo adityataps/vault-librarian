@@ -1,9 +1,11 @@
 """Configuration management using Pydantic Settings."""
 
-from pathlib import Path
-from typing import Literal
+from __future__ import annotations
 
-from pydantic import Field, field_validator
+from pathlib import Path
+from typing import Any, Literal
+
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -153,13 +155,39 @@ class Settings(BaseSettings):
     storage_backend: Literal["postgres", "sqlite"] = "postgres"
     sqlite_path: Path = Field(default=Path("vault_crawler.db"))
 
-    # Sub-configs
+    # Sub-configs — instantiated via model_validator so each BaseSettings
+    # reads its own env vars rather than receiving an empty dict from the parent.
     database: DatabaseSettings = Field(default_factory=DatabaseSettings)
     redis: RedisSettings = Field(default_factory=RedisSettings)
     llm: LLMSettings = Field(default_factory=LLMSettings)
     vault: VaultSettings = Field(default_factory=VaultSettings)
     scheduler: SchedulerSettings = Field(default_factory=SchedulerSettings)
     jira: JiraSettings = Field(default_factory=JiraSettings)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _build_nested_settings(cls, data: Any) -> Any:
+        """Pre-instantiate nested BaseSettings so each reads its own env vars.
+
+        Without this, pydantic-settings v2 passes ``{}`` to each nested field
+        and the alias-based env-var reading inside the sub-class never fires,
+        causing spurious ``Field required`` errors for fields like
+        ``OBSIDIAN_VAULT_PATH``.
+        """
+        if not isinstance(data, dict):
+            return data
+        mapping = {
+            "database": DatabaseSettings,
+            "redis": RedisSettings,
+            "llm": LLMSettings,
+            "vault": VaultSettings,
+            "scheduler": SchedulerSettings,
+            "jira": JiraSettings,
+        }
+        for key, klass in mapping.items():
+            if key not in data:
+                data[key] = klass()
+        return data
 
     @property
     def is_development(self) -> bool:

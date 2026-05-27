@@ -31,8 +31,11 @@ def _get_cors_origins(settings: "Settings") -> list[str]:
     return [origin.strip() for origin in allowed_origins.split(",") if origin.strip()]
 
 
-def create_app(settings: "Settings") -> FastAPI:
+def create_app(settings: "Settings | None" = None) -> FastAPI:
     """Create and configure the FastAPI application."""
+    if settings is None:
+        from src.config import get_settings
+        settings = get_settings()
     storage: StorageBackend = build_storage(settings)
     llm_router: LLMRouter = build_llm_router(settings)
     embedding_service: EmbeddingService = build_embedding_service(llm_router)

@@ -1,8 +1,7 @@
-version: '3.9'
-
+name: vault-crawler
 services:
   postgres:
-    image: pgvector/pgvector:pg16
+    image: pgvector/pgvector:pg18-trixie
     container_name: vault-crawler-postgres
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-vault_crawler}
@@ -11,8 +10,7 @@ services:
     ports:
       - "${POSTGRES_PORT:-5432}:5432"
     volumes:
-      - ./docker-volumes/postgres:/var/lib/postgresql/data
-      - ./scripts/postgres-init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+      - ./docker-volumes/postgres:/var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-vault_crawler} -d ${POSTGRES_DB:-vault_crawler}"]
       interval: 10s
@@ -22,7 +20,7 @@ services:
       - vault-crawler-net
 
   redis:
-    image: redis:7-alpine
+    image: redis:8-trixie
     container_name: vault-crawler-redis
     command: redis-server --appendonly yes ${REDIS_PASSWORD:+--requirepass $REDIS_PASSWORD}
     ports:

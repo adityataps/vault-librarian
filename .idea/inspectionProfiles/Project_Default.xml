@@ -1,0 +1,80 @@
+<component name="InspectionProjectProfileManager">
+  <profile version="1.0">
+    <option name="myName" value="Project Default" />
+    <inspection_tool class="Eslint" enabled="true" level="WARNING" enabled_by_default="true" />
+    <inspection_tool class="PyPackageRequirementsInspection" enabled="true" level="WARNING" enabled_by_default="true">
+      <option name="ignoredPackages">
+        <list>
+          <option value="aiosqlite" />
+          <option value="alembic" />
+          <option value="altair" />
+          <option value="Authlib" />
+          <option value="cloudpickle" />
+          <option value="docstring_parser" />
+          <option value="google-adk" />
+          <option value="google-cloud-aiplatform" />
+          <option value="google-cloud-appengine-logging" />
+          <option value="google-cloud-audit-log" />
+          <option value="google-cloud-bigtable" />
+          <option value="google-cloud-geminidataanalytics" />
+          <option value="google-cloud-iam" />
+          <option value="google-cloud-logging" />
+          <option value="google-cloud-modelarmor" />
+          <option value="google-cloud-monitoring" />
+          <option value="google-cloud-resource-manager" />
+          <option value="google-cloud-secret-manager" />
+          <option value="google-cloud-spanner" />
+          <option value="google-cloud-speech" />
+          <option value="google-cloud-trace" />
+          <option value="graphviz" />
+          <option value="greenlet" />
+          <option value="grpc-interceptor" />
+          <option value="httpx-sse" />
+          <option value="iniconfig" />
+          <option value="Jinja2" />
+          <option value="jsonschema" />
+          <option value="jsonschema-specifications" />
+          <option value="Mako" />
+          <option value="MarkupSafe" />
+          <option value="mcp" />
+          <option value="mmh3" />
+          <option value="narwhals" />
+          <option value="opentelemetry-exporter-gcp-logging" />
+          <option value="opentelemetry-exporter-gcp-monitoring" />
+          <option value="opentelemetry-exporter-gcp-trace" />
+          <option value="opentelemetry-exporter-otlp-proto-common" />
+          <option value="opentelemetry-exporter-otlp-proto-http" />
+          <option value="opentelemetry-proto" />
+          <option value="opentelemetry-resourcedetector-gcp" />
+          <option value="pluggy" />
+          <option value="pydantic-settings" />
+          <option value="Pygments" />
+          <option value="PyJWT" />
+          <option value="pyOpenSSL" />
+          <option value="pytest" />
+          <option value="python-multipart" />
+          <option value="PyYAML" />
+          <option value="referencing" />
+          <option value="rpds-py" />
+          <option value="ruff" />
+          <option value="SQLAlchemy" />
+          <option value="sqlalchemy-bigquery" />
+          <option value="sqlalchemy-spanner" />
+          <option value="sqlparse" />
+          <option value="sse-starlette" />
+          <option value="tzlocal" />
+          <option value="watchdog" />
+          <option value="booktype" />
+        </list>
+      </option>
+    </inspection_tool>
+    <inspection_tool class="PyStubPackagesCompatibilityInspection" enabled="true" level="WARNING" enabled_by_default="true">
+      <option name="ignoredStubPackages">
+        <list>
+          <option value="pandas-stubs~=2.2.3" />
+          <option value="pandas-stubs~=2.3.3" />
+        </list>
+      </option>
+    </inspection_tool>
+  </profile>
+</component>

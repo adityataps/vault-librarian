@@ -1,0 +1,74 @@
+version: '3.9'
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: vault-crawler-postgres
+    environment:
+      POSTGRES_USER: vault_crawler
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-vault_crawler_dev}
+      POSTGRES_DB: vault_crawler
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./docker-volumes/postgres:/var/lib/postgresql/data
+      - ./scripts/postgres-init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U vault_crawler -d vault_crawler"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - vault-crawler-net
+
+  redis:
+    image: redis:7-alpine
+    container_name: vault-crawler-redis
+    command: redis-server --appendonly yes
+    ports:
+      - "6379:6379"
+    volumes:
+      - ./docker-volumes/redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks:
+      - vault-crawler-net
+    profiles:
+      - with-redis
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: vault-crawler-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ./docker-volumes/ollama:/root/.ollama
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - vault-crawler-net
+    profiles:
+      - with-ollama
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    # Comment out the deploy section above if no GPU available
+
+networks:
+  vault-crawler-net:
+    driver: bridge
+
+volumes:
+  postgres-data:
+  redis-data:
+  ollama-data:

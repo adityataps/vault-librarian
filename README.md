@@ -7,7 +7,22 @@ Multi-agent Obsidian vault management service powered by CrewAI.
 ### 1. Prerequisites
 - Python 3.11+
 - [uv](https://github.com/astral-sh/uv) (or pip)
-- Docker and Docker Compose
+- [Podman](https://podman.io/) + podman-compose (`brew install podman podman-compose`)
+  - **or** Docker + Docker Compose
+
+#### Podman users: one-time setup
+Configure Podman to use `podman-compose` as its compose provider so `podman compose` and `podman-compose` are interchangeable:
+
+```bash
+mkdir -p ~/.config/containers
+cat >> ~/.config/containers/containers.conf << 'EOF'
+[engine]
+compose_providers = ["/opt/homebrew/bin/podman-compose"]
+compose_warning_logs = false
+EOF
+```
+
+Without this, `podman compose` delegates to the system `docker-compose` binary which uses incompatible network labels.
 
 ### 2. Configuration
 

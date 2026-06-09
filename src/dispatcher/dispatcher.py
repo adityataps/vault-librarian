@@ -15,11 +15,20 @@ _CONFIG_REL = ".librarian/config.md"
 
 
 class Dispatcher:
-    def __init__(self, cfg: AppConfig, tools: VaultTools, pipeline_runner) -> None:
+    def __init__(
+        self,
+        cfg: AppConfig,
+        db,  # Database — stored directly so reconcile() doesn't reach into runner internals
+        tools: VaultTools,
+        pipeline_runner,
+        loop: asyncio.AbstractEventLoop | None = None,
+    ) -> None:
         self._cfg = cfg
+        self._db = db
         self._tools = tools
         self._runner = pipeline_runner
-        self._debounce = DebounceMap(default_delay=cfg.debounce_standard)
+        self._loop = loop or asyncio.get_event_loop()
+        self._debounce = DebounceMap(default_delay=cfg.debounce_standard, loop=self._loop)
         self._locks = FileLockMap()
 
     def on_file_event(self, abs_path: str, event_type: str) -> None:
@@ -48,11 +57,8 @@ class Dispatcher:
             log.warning("Config reload failed: %s", exc)
 
     def _dispatch(self, rel: str) -> None:
-        loop = asyncio.get_event_loop()
-        if loop.is_running():
-            loop.create_task(self._run_pipeline(rel))
-        else:
-            loop.run_until_complete(self._run_pipeline(rel))
+        # Called from the event loop (via call_later), so create_task is always safe here.
+        self._loop.create_task(self._run_pipeline(rel))
 
     async def _run_pipeline(self, rel: str) -> None:
         async with self._locks.acquire(rel):
@@ -65,8 +71,8 @@ class Dispatcher:
         from src.storage.repository import AgentRunRepo, NoteRepo
         from src.vault.scanner import VaultScanner
 
-        note_repo = NoteRepo(self._runner._db)
-        run_repo = AgentRunRepo(self._runner._db)
+        note_repo = NoteRepo(self._db)
+        run_repo = AgentRunRepo(self._db)
         stored_hashes = await note_repo.all_hashes()
         pipeline_agents = set(self._cfg.enrolled_agents) - {
             "scaffolder",

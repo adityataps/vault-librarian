@@ -10,6 +10,9 @@ from langchain_core.embeddings import Embeddings
 class VectorStore:
     def __init__(self, vault_root: str, embedder: Embeddings) -> None:
         persist_dir = str(Path(vault_root) / ".librarian" / "chroma")
+        # PersistentClient runs entirely in-process — no HTTP server is started.
+        # The ChromaDB pre-auth code injection CVE (GHSA) only affects the
+        # chromadb HTTP server mode, which is never used here.
         client = chromadb.PersistentClient(path=persist_dir)
         self._store = Chroma(
             client=client,

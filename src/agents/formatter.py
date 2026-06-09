@@ -45,7 +45,7 @@ def formatter_node(state: VaultState, llm, tools: VaultTools, cfg: AppConfig, **
         system += f"\n\nAdditional instructions:\n{instructions}"
 
     safe_content = _strip_dataview(state["note_content"])
-    structured = llm.with_structured_output(FrontmatterFix)
+    structured = llm.with_structured_output(FrontmatterFix, method="function_calling")
     try:
         fix: FrontmatterFix = structured.invoke(
             [

@@ -33,7 +33,7 @@ def meeting_enricher_node(state: VaultState, llm, tools: VaultTools, cfg: AppCon
     instructions = cfg.get_agent_instructions("meeting_enricher")
     system = _SYSTEM_PROMPT + (f"\n\n{instructions}" if instructions else "")
 
-    structured = llm.with_structured_output(MeetingAnalysis)
+    structured = llm.with_structured_output(MeetingAnalysis, method="function_calling")
     try:
         analysis: MeetingAnalysis = structured.invoke(
             [

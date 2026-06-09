@@ -3,10 +3,28 @@ from __future__ import annotations
 import glob
 import logging
 from pathlib import Path
+from typing import Any
 
 from mcp.server.fastmcp import FastMCP
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request
+from starlette.responses import Response
 
 log = logging.getLogger(__name__)
+
+
+class _SecretAuthMiddleware(BaseHTTPMiddleware):
+    """Require X-Librarian-Secret on every MCP request."""
+
+    def __init__(self, app, secret_getter) -> None:
+        super().__init__(app)
+        self._get_secret = secret_getter
+
+    async def dispatch(self, request: Request, call_next) -> Response:
+        provided = request.headers.get("x-librarian-secret", "")
+        if provided != self._get_secret():
+            return Response("Unauthorized", status_code=401)
+        return await call_next(request)
 
 
 def _get_deps():
@@ -14,6 +32,15 @@ def _get_deps():
     import src.api.app as _app
     from src.config import get_config
     return _app._db, _app._runner, get_config(), getattr(_app._runner, "_vector_store", None)
+
+
+def _validate_note_path(path: str, cfg) -> Path:
+    """Resolve and validate a note path against the vault root. Raises ValueError on escape."""
+    from src.vault.tools import VaultTools
+    tools = VaultTools(cfg.vault_path)
+    if not path.endswith(".md"):
+        raise ValueError(f"Path must end in .md: {path!r}")
+    return tools.abs(path)  # raises ValueError on traversal or symlink
 
 
 def build_mcp_server_lazy() -> FastMCP:
@@ -37,9 +64,16 @@ def build_mcp_server_lazy() -> FastMCP:
     @mcp.tool()
     async def run_agent(agent: str, note_path: str) -> str:
         """Manually trigger a specific agent on a vault note."""
+        from src.pipeline.builder import PIPELINE_ORDER
         db, runner, cfg, _ = _get_deps()
         if runner is None:
             return "Service not ready — start vault-librarian serve first"
+        if agent not in PIPELINE_ORDER and agent not in ("auditor", "scaffolder"):
+            return f"Unknown agent: {agent!r}. Valid: {PIPELINE_ORDER}"
+        try:
+            _validate_note_path(note_path, cfg)
+        except ValueError as exc:
+            return f"Invalid note path: {exc}"
         await runner.run(note_path)
         return f"Agent '{agent}' dispatched for {note_path}"
 
@@ -62,7 +96,10 @@ def build_mcp_server_lazy() -> FastMCP:
         db, runner, cfg, _ = _get_deps()
         if runner is None:
             return "Service not ready"
-        abs_path = str(Path(cfg.vault_path) / path)
+        try:
+            abs_path = str(_validate_note_path(path, cfg))
+        except ValueError as exc:
+            return f"Invalid path: {exc}"
         try:
             meta = parse_note(abs_path, cfg.vault_path)
         except FileNotFoundError:

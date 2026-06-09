@@ -146,6 +146,16 @@ def create_app() -> FastAPI:
             ]
         }
 
+    from src.api.mcp import _SecretAuthMiddleware
+    from starlette.middleware import Middleware
+    from starlette.applications import Starlette
+
     mcp_server = build_mcp_server_lazy()
-    app.mount("/mcp", mcp_server.streamable_http_app())
+    mcp_asgi = mcp_server.streamable_http_app()
+    # Wrap MCP ASGI app with auth middleware — app.mount() bypasses FastAPI deps
+    authed_mcp = Starlette(
+        middleware=[Middleware(_SecretAuthMiddleware, secret_getter=lambda: get_config().secret)],
+    )
+    authed_mcp.mount("/", mcp_asgi)
+    app.mount("/mcp", authed_mcp)
     return app

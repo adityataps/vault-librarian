@@ -15,11 +15,14 @@ def build_llm(cfg: AppConfig) -> BaseChatModel:
                 base_url="https://models.inference.ai.azure.com",
                 api_key=cfg.llm_api_key,
                 model=cfg.llm_model,
+                max_retries=2,
             )
         case "anthropic":
             from langchain_anthropic import ChatAnthropic
 
-            return ChatAnthropic(model=cfg.llm_model, api_key=cfg.llm_api_key)
+            return ChatAnthropic(
+                model=cfg.llm_model, api_key=cfg.llm_api_key, max_retries=2,
+            )
         case "ollama":
             from langchain_community.chat_models import ChatOllama
 

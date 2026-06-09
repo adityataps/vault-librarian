@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import logging
 import os
 import shutil
 import tempfile
@@ -8,6 +9,8 @@ from pathlib import Path
 
 import frontmatter
 import git
+
+log = logging.getLogger(__name__)
 
 
 class ConflictError(Exception):
@@ -56,6 +59,7 @@ class VaultTools:
             with os.fdopen(fd, "w", encoding="utf-8") as f:
                 f.write(content)
             os.replace(tmp, target)
+            log.info("Wrote %s (%d bytes)", rel, len(content))
         except Exception:
             try:
                 os.unlink(tmp)
@@ -70,14 +74,17 @@ class VaultTools:
             raise ValueError(f"refusing to move symlink: {src_rel!r} → {dst_rel!r}")
         dst.parent.mkdir(parents=True, exist_ok=True)
         shutil.move(str(src), str(dst))
+        log.info("Moved %s → %s", src_rel, dst_rel)
 
     def update_frontmatter(self, rel: str, fields: dict) -> None:
         text = self.read_note(rel)
         post = frontmatter.loads(text)
         post.metadata.update(fields)
         self.write_note(rel, frontmatter.dumps(post))
+        log.info("Updated frontmatter on %s: %s", rel, list(fields.keys()))
 
     def create_note(self, rel: str, content: str) -> None:
+        log.info("Creating note %s", rel)
         self.write_note(rel, content)
 
     def list_notes(self, folder: str = "") -> list[str]:

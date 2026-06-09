@@ -68,11 +68,7 @@ uv run vault-librarian serve
 
 ### SQLite (default)
 
-Vault Librarian uses SQLite via SQLAlchemy + aiosqlite for relational state. No external database is required. Migrations are managed by Alembic:
-
-```bash
-uv run alembic upgrade head
-```
+Vault Librarian uses SQLite via SQLAlchemy + aiosqlite for relational state. No external database is required. Tables are created automatically on first startup.
 
 ### LanceDB (vector search)
 

@@ -90,7 +90,6 @@ $COMPOSE_CMD "${PROFILES[@]}" ps
 
 echo ""
 echo "Next steps:"
-echo "  Run migrations: uv run alembic upgrade head"
 echo "  Start service:  uv run vault-librarian serve"
 echo "  View logs:      $COMPOSE_CMD logs -f"
 echo "  Stop services:  $COMPOSE_CMD down"

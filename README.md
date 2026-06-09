@@ -28,13 +28,7 @@ Edit `.env` with your settings:
 uv sync
 ```
 
-### 4. Run Migrations
-
-```bash
-uv run alembic upgrade head
-```
-
-### 5. Start the Service
+### 4. Start the Service
 
 ```bash
 uv run vault-librarian serve
@@ -64,7 +58,6 @@ Or use the helper script:
 | `vault-librarian serve` | Start the API server + scheduler + file watcher |
 | `vault-librarian scan` | Scan vault and print a note summary |
 | `vault-librarian index` | Upsert all vault notes into vector storage |
-| `vault-librarian migrate` | Run Alembic database migrations |
 | `vault-librarian status` | Check connectivity of all components |
 
 Run `vault-librarian <command> --help` for per-command options.

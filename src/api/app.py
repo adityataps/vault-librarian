@@ -13,6 +13,7 @@ from src.llm.factory import build_embedder, build_llm
 from src.pipeline.runner import PipelineRunner
 from src.storage.db import build_db
 from src.vault.tools import VaultTools
+from src.scheduler.jobs import build_scheduler
 from src.vault_config.loader import VaultConfigLoader
 from src.vector.store import VectorStore
 
@@ -22,11 +23,12 @@ log = logging.getLogger(__name__)
 _dispatcher = None
 _runner = None
 _db = None
+_scheduler = None
 
 
 @asynccontextmanager
 async def _lifespan(app: FastAPI):
-    global _dispatcher, _runner, _db
+    global _dispatcher, _runner, _db, _scheduler
 
     cfg = get_config()
     VaultConfigLoader(cfg).apply()
@@ -42,6 +44,10 @@ async def _lifespan(app: FastAPI):
     _runner = PipelineRunner(cfg, _db, tools, llm, vector_store)
     _dispatcher = Dispatcher(cfg, _db, tools, _runner)
 
+    _scheduler = build_scheduler(cfg, _db, tools, llm)
+    _scheduler.start()
+    log.info("Scheduler started with %d jobs", len(_scheduler.get_jobs()))
+
     watcher = VaultWatcher(
         cfg.vault_path,
         excluded=set(cfg.vault_excluded_folders),
@@ -55,6 +61,8 @@ async def _lifespan(app: FastAPI):
 
     yield
 
+    if _scheduler and _scheduler.running:
+        _scheduler.shutdown(wait=False)
     watcher.stop()
     await _db.close()
     log.info("vault-librarian stopped")

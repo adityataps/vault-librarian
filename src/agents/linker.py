@@ -78,7 +78,7 @@ def linker_node(
         changes = [f"Linker: proposed {len(decision.related_paths)} backlinks"]
 
     try:
-        vector_store.upsert(state["note_path"], state["note_content"])
+        vector_store.upsert(state["note_path"], content)
     except Exception as exc:
         log.debug("Vector upsert failed: %s", exc)
 

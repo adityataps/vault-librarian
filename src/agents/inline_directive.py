@@ -73,8 +73,15 @@ def inline_directive_node(
         changes.append(f"Inline directive ({d.tag}) resolved")
 
     if changes:
-        tools.write_note(
-            state["note_path"], content, dispatch_hash=state.get("dispatch_hash") or None
-        )
+        from src.autonomy.inbox import LibrarianInbox
+
+        if cfg.get_autonomy("inline_directive") == "full":
+            tools.write_note(
+                state["note_path"], content, dispatch_hash=state.get("dispatch_hash") or None
+            )
+        else:
+            LibrarianInbox(cfg, tools).propose(
+                f"Resolve {len(changes)} inline directive(s) in `{state['note_path']}`"
+            )
 
     return {"directives": directives, "changes": changes}

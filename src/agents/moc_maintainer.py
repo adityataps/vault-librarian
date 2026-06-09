@@ -34,7 +34,7 @@ _STATUS_ICONS: dict[str, str] = {
 }
 
 
-def moc_maintainer_node(state: VaultState, tools: VaultTools, cfg: AppConfig, **_) -> dict:
+def moc_maintainer_node(state: VaultState, llm, tools: VaultTools, cfg: AppConfig, **_) -> dict:
     folder = str(Path(state["note_path"]).parent)
     if folder == ".":
         folder = ""
@@ -80,10 +80,12 @@ def moc_maintainer_node(state: VaultState, tools: VaultTools, cfg: AppConfig, **
 def _insert_into_section(content: str, section: str, entry: str) -> str:
     if section not in content:
         return content.rstrip() + f"\n\n{section}\n\n{entry}"
-    parts = content.split(section, 1)
-    lines = parts[1].split("\n")
-    lines.insert(2, entry.rstrip())
-    return parts[0] + section + "\n".join(lines)
+    idx = content.index(section) + len(section)
+    # Find first blank line or next content after header
+    rest = content[idx:]
+    # Insert entry after the header's newline
+    insert_pos = idx + len(rest) - len(rest.lstrip("\n")) + 1
+    return content[:insert_pos] + entry + content[insert_pos:]
 
 
 def _update_jira_status(content: str, title: str, status: str) -> str:

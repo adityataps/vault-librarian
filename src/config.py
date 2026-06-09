@@ -59,6 +59,9 @@ class AppConfig(BaseSettings):
     debounce_directive: float = 0.5
     debounce_inbox: float = 30.0
 
+    # Inbox
+    inbox_retention_hours: int = 48
+
     # Agent enrollment
     enrolled_agents: list[str] = Field(
         default_factory=lambda: [

@@ -74,6 +74,12 @@ The embedding provider is independent of the LLM provider. Use `local` when you 
 | `LIBRARIAN_DEBOUNCE_DIRECTIVE` | | `0.5` | Seconds to debounce inline directive events |
 | `LIBRARIAN_DEBOUNCE_INBOX` | | `30.0` | Seconds to wait after Inbox.md save before processing checked items |
 
+### Inbox
+
+| Variable | Required | Default | Description |
+|---|---|---|---|
+| `LIBRARIAN_INBOX_RETENTION_HOURS` | | `48` | Hours to keep executed items in Inbox before auto-removal during consolidation |
+
 ---
 
 ## Storage

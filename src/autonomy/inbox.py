@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 import re
-from datetime import date
+from datetime import datetime, timedelta, timezone
 
 from src.config import AppConfig
 from src.vault.tools import VaultTools
@@ -21,6 +21,12 @@ _TOP_CHECKED_RE = re.compile(r"^- \[x\] (.+)$", re.MULTILINE)
 _CHILD_RE = re.compile(r"^    - \[[ x]\] (.+)$")
 # Matches an indented unchecked child: `    - [ ] action`
 _CHILD_UNCHECKED_RE = re.compile(r"^    - \[ \] (.+)$")
+
+# Matches executed timestamp: (✅ Executed 2026-06-09 16:04 ET)
+_EXECUTED_TS_RE = re.compile(r"\(✅ Executed (\d{4}-\d{2}-\d{2} \d{2}:\d{2}) ET\)")
+
+# US Eastern timezone (ET)
+_ET = timezone(timedelta(hours=-4))
 
 _CONSOLIDATE_PROMPT = """\
 You are an Obsidian vault librarian. Below is a user's action inbox with two sections:
@@ -45,9 +51,9 @@ Merge the pending items into the curated list. Rules:
 more descriptive one).
 - Remove items that reference template placeholders like [[Note Title]], \
 [[wikilink]], [[filename]].
-- Remove items already completed (marked ✅).
-- Preserve any checked `- [x]` or completed `- ✅` items from the curated \
-section as-is, keeping them under their original category if possible.
+- Remove items already executed (lines containing ~~strikethrough~~ with a ✅ timestamp).
+- Preserve any checked `- [x]` items from the curated section as-is, \
+keeping them under their original category if possible.
 - Do NOT invent new action items. Only use items from the input.
 - Output ONLY the final categorized task list. No extra commentary.
 """
@@ -57,6 +63,11 @@ class LibrarianInbox:
     def __init__(self, cfg: AppConfig, tools: VaultTools) -> None:
         self._cfg = cfg
         self._tools = tools
+
+    @staticmethod
+    def _executed_stamp() -> str:
+        now = datetime.now(_ET)
+        return f"(✅ Executed {now.strftime('%Y-%m-%d %H:%M')} ET)"
 
     def _read(self) -> str:
         try:
@@ -117,9 +128,13 @@ class LibrarianInbox:
     async def consolidate(self) -> int:
         """Use the LLM to deduplicate, categorize, and merge pending items.
 
+        Also cleans up expired executed items first.
         Returns the number of items in the final curated list.
         """
         from src.llm.factory import build_llm
+
+        # Clean up old executed items first
+        self.cleanup_executed()
 
         content = self._read()
         body, pending = self._split_pending(content)
@@ -131,7 +146,7 @@ class LibrarianInbox:
         curated_lines = [
             line.rstrip()
             for line in body.splitlines()
-            if re.match(r"^( {4})?- \[[ x]\] ", line) or "- ✅" in line
+            if re.match(r"^( {4})?- (\[[ x]\] |~~)", line)
         ]
 
         llm = build_llm(self._cfg, tier="heavy")
@@ -157,7 +172,7 @@ class LibrarianInbox:
         header_lines = [
             line
             for line in body.splitlines()
-            if not re.match(r"^( {4})?- \[[ x]\] ", line) and "- ✅" not in line
+            if not re.match(r"^( {4})?- (\[[ x]\] |~~)", line)
         ]
         header = "\n".join(header_lines).rstrip()
         new_content = (
@@ -177,6 +192,51 @@ class LibrarianInbox:
         )
         return promoted
 
+    def cleanup_executed(self) -> int:
+        """Remove executed items older than inbox_retention_hours. Returns count removed."""
+        content = self._read()
+        cutoff = datetime.now(_ET) - timedelta(hours=self._cfg.inbox_retention_hours)
+        lines = content.splitlines()
+        kept: list[str] = []
+        removed = 0
+
+        i = 0
+        while i < len(lines):
+            line = lines[i]
+            if self._is_expired_line(line, cutoff):
+                # Top-level expired — also skip expired children
+                removed += 1
+                i += 1
+                while i < len(lines) and lines[i].startswith("    - "):
+                    if self._is_expired_line(lines[i], cutoff):
+                        removed += 1
+                    # Drop all children of an expired category
+                    i += 1
+                continue
+            # Indented expired line (parent not expired)
+            if line.startswith("    - ") and self._is_expired_line(line, cutoff):
+                removed += 1
+                i += 1
+                continue
+            kept.append(line)
+            i += 1
+
+        if removed:
+            self._write("\n".join(kept) + "\n")
+            log.info("Inbox cleanup: removed %d expired item(s)", removed)
+        return removed
+
+    @staticmethod
+    def _is_expired_line(line: str, cutoff: datetime) -> bool:
+        m = _EXECUTED_TS_RE.search(line)
+        if not m:
+            return False
+        try:
+            ts = datetime.strptime(m.group(1), "%Y-%m-%d %H:%M").replace(tzinfo=_ET)
+            return ts < cutoff
+        except ValueError:
+            return False
+
     # ── execute checked ───────────────────────────────────────────────
 
     def execute_checked(self) -> list[str]:
@@ -184,7 +244,7 @@ class LibrarianInbox:
         content = self._read()
         lines = content.splitlines()
         executed: list[str] = []
-        today = date.today().isoformat()
+        stamp = self._executed_stamp()
         result_lines: list[str] = []
 
         i = 0
@@ -219,7 +279,7 @@ class LibrarianInbox:
                         if self._try_execute(item):
                             category_executed.append(item)
                             child_results.append(
-                                f"    - ✅ Executed {today} — {item}"
+                                f"    - ~~{item}~~ {stamp}"
                             )
                         else:
                             child_results.append(child_line)
@@ -229,11 +289,10 @@ class LibrarianInbox:
 
                 if category_executed:
                     executed.extend(category_executed)
-                    # Mark category as done if all children executed
-                    all_done = all("✅" in cl for cl in child_results)
+                    all_done = all("~~" in cl for cl in child_results)
                     if all_done:
                         result_lines.append(
-                            f"- ✅ Executed {today} — {top_text}"
+                            f"- ~~{top_text}~~ {stamp}"
                         )
                     else:
                         result_lines.append(f"- [x] {top_text}")
@@ -246,7 +305,7 @@ class LibrarianInbox:
                 if self._try_execute(top_text):
                     executed.append(top_text)
                     result_lines.append(
-                        f"- ✅ Executed {today} — {top_text}"
+                        f"- ~~{top_text}~~ {stamp}"
                     )
                 else:
                     result_lines.append(line)

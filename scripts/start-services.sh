@@ -36,15 +36,28 @@ else
 fi
 
 # Build compose command with conditional profiles
-PROFILES=("--profile" "ollama")
+PROFILES=()
+
+if [ "${ENABLE_OLLAMA:-false}" = "true" ]; then
+    echo "✓ Ollama enabled"
+    PROFILES+=("--profile" "ollama")
+else
+    echo "✗ Ollama disabled (set ENABLE_OLLAMA=true to enable)"
+fi
+
+if [ ${#PROFILES[@]} -eq 0 ]; then
+    echo ""
+    echo "No services to start. Set ENABLE_OLLAMA=true in .env to start Ollama."
+    exit 0
+fi
 
 # Start services
 echo ""
-echo "Starting vault-librarian infrastructure (Ollama)..."
+echo "Starting vault-librarian infrastructure..."
 $COMPOSE_CMD "${PROFILES[@]}" up -d --force-recreate "$@"
 
 # Pull Ollama models if configured
-if [ -n "${OLLAMA_MODELS:-}" ]; then
+if [ "${ENABLE_OLLAMA:-false}" = "true" ] && [ -n "${OLLAMA_MODELS:-}" ]; then
     echo ""
     echo "Pulling Ollama models: ${OLLAMA_MODELS}"
 

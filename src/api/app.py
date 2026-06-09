@@ -6,6 +6,7 @@ from contextlib import asynccontextmanager
 from fastapi import Depends, FastAPI, Header, HTTPException
 from pydantic import BaseModel
 
+from src.api.mcp import build_mcp_server_lazy
 from src.config import get_config
 from src.dispatcher.dispatcher import Dispatcher
 from src.dispatcher.watcher import VaultWatcher
@@ -145,4 +146,6 @@ def create_app() -> FastAPI:
             ]
         }
 
+    mcp_server = build_mcp_server_lazy()
+    app.mount("/mcp", mcp_server.streamable_http_app())
     return app

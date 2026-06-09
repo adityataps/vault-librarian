@@ -71,10 +71,11 @@ def test_execute_checked_non_executable_item(setup):
     inbox_path.write_text("# Librarian Inbox\n\n- [x] Review this note manually\n")
     inbox = LibrarianInbox(cfg, tools)
     executed = inbox.execute_checked()
-    # Non-move items are not auto-executed but still marked
+    assert executed == []
     content = inbox_path.read_text()
-    # Item should still be in inbox (not executed, not removed)
-    assert "Review this note manually" in content
+    # Non-auto-executable item is preserved unchanged (still checked, not marked executed)
+    assert "- [x] Review this note manually" in content
+    assert "✅ Executed" not in content
 
 
 def test_inbox_empty_initially(setup):

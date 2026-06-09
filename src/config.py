@@ -116,7 +116,7 @@ class AppConfig(BaseSettings):
         return self._agent_instructions.get(agent, "")
 
     def update_agent_instructions(self, instructions: dict[str, str]) -> None:
-        self._agent_instructions = instructions
+        self._agent_instructions.update(instructions)
 
 
 _instance: AppConfig | None = None

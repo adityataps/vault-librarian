@@ -9,6 +9,9 @@ from watchdog.observers import Observer
 
 log = logging.getLogger(__name__)
 
+# Files inside excluded folders that should still be watched
+_PASSTHROUGH_SUFFIXES = ("Librarian/Inbox.md",)
+
 
 class _Handler(FileSystemEventHandler):
     def __init__(self, callback: Callable[[str, str], None], excluded: set[str]) -> None:
@@ -16,6 +19,9 @@ class _Handler(FileSystemEventHandler):
         self._excluded = excluded
 
     def _is_excluded(self, path: str) -> bool:
+        # Allow specific files through even if their parent folder is excluded
+        if any(path.endswith(s) or path.replace("\\", "/").endswith(s) for s in _PASSTHROUGH_SUFFIXES):
+            return False
         return any(part in self._excluded for part in Path(path).parts)
 
     def on_created(self, event: FileSystemEvent) -> None:

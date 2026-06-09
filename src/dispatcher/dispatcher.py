@@ -12,6 +12,8 @@ from src.vault.tools import VaultTools
 log = logging.getLogger(__name__)
 
 _CONFIG_REL = "Librarian/config.md"
+_INBOX_REL = "Librarian/Inbox.md"
+_INBOX_DEBOUNCE = 2.0  # seconds to wait after last save before processing
 
 
 class Dispatcher:
@@ -40,6 +42,11 @@ class Dispatcher:
         if rel == _CONFIG_REL:
             self._debounce.schedule(rel, self._reload_config, delay=0.5)
             return
+        if rel == _INBOX_REL:
+            self._debounce.schedule(
+                rel, self._process_inbox, delay=_INBOX_DEBOUNCE
+            )
+            return
         try:
             has_directive = self._tools.has_directive_tags(rel)
         except Exception:
@@ -55,6 +62,24 @@ class Dispatcher:
             log.info("Config reloaded from %s", _CONFIG_REL)
         except Exception as exc:
             log.warning("Config reload failed: %s", exc)
+
+    def _process_inbox(self) -> None:
+        self._loop.create_task(self._run_inbox())
+
+    async def _run_inbox(self) -> None:
+        async with self._locks.acquire(_INBOX_REL):
+            try:
+                from src.autonomy.inbox import LibrarianInbox
+
+                inbox = LibrarianInbox(self._cfg, self._tools)
+                log.info("Inbox: checking for user-checked items…")
+                executed = inbox.execute_checked()
+                if executed:
+                    log.info("Inbox: executed %d item(s): %s", len(executed), executed)
+                else:
+                    log.debug("Inbox: no checked items to execute")
+            except Exception:
+                log.exception("Inbox processing failed")
 
     def _dispatch(self, rel: str) -> None:
         # Called from the event loop (via call_later), so create_task is always safe here.

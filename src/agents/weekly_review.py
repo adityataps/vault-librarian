@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import date, datetime, timezone, timedelta
+from datetime import datetime, timezone
 
 from langchain_core.messages import HumanMessage, SystemMessage
 
@@ -27,7 +27,7 @@ async def run_weekly_review(
     tools: VaultTools,
     llm,
 ) -> None:
-    today = date.today()
+    today = datetime.now(timezone.utc).date()
     iso_year, iso_week, _ = today.isocalendar()
     week_label = f"{iso_year}-W{iso_week:02d}"
 
@@ -35,7 +35,7 @@ async def run_weekly_review(
     action_repo = ActionItemRepo(db)
     audit_repo = AuditLogRepo(db)
 
-    all_hashes = await note_repo.all_hashes()
+    hash_by_path = await note_repo.all_hashes()
     unresolved = await action_repo.unresolved()
     weekly_audit = await audit_repo.query(since="7d", limit=200)
 
@@ -43,8 +43,8 @@ async def run_weekly_review(
     for entry in weekly_audit:
         agent_summary[entry.agent] = agent_summary.get(entry.agent, 0) + 1
 
-    meeting_notes = [p for p in all_hashes if p.startswith("Meetings/")]
-    jira_notes = [p for p in all_hashes if p.startswith("Jira/")]
+    meeting_notes = [p for p in hash_by_path.keys() if p.startswith("Meetings/")]
+    jira_notes = [p for p in hash_by_path.keys() if p.startswith("Jira/")]
 
     context = (
         f"Week: {week_label}\n"
@@ -52,7 +52,7 @@ async def run_weekly_review(
         f"Jira tickets in vault: {len(jira_notes)}\n"
         f"Unresolved action items: {len(unresolved)}\n"
         f"Agent operations this week: {dict(list(agent_summary.items())[:8])}\n"
-        f"Total vault notes: {len(all_hashes)}\n"
+        f"Total vault notes: {len(hash_by_path)}\n"
     )
 
     try:

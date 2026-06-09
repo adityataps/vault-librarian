@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import date, datetime, timezone, timedelta
+from datetime import datetime, timezone
 
 from langchain_core.messages import HumanMessage, SystemMessage
 
@@ -27,18 +27,18 @@ async def run_daily_brief(
     tools: VaultTools,
     llm,
 ) -> None:
-    today = date.today().isoformat()
+    today = datetime.now(timezone.utc).date().isoformat()
 
     note_repo = NoteRepo(db)
     action_repo = ActionItemRepo(db)
     audit_repo = AuditLogRepo(db)
 
-    all_hashes = await note_repo.all_hashes()
+    hash_by_path = await note_repo.all_hashes()
     action_items = await action_repo.unresolved()
     recent_audit = await audit_repo.query(since="1d", limit=50)
 
-    jira_notes = [p for p in all_hashes if p.startswith("Jira/")]
-    meeting_notes = [p for p in all_hashes if p.startswith("Meetings/")]
+    jira_notes = [p for p in hash_by_path.keys() if p.startswith("Jira/")]
+    meeting_notes = [p for p in hash_by_path.keys() if p.startswith("Meetings/")]
 
     agent_summary: dict[str, int] = {}
     for entry in recent_audit:
@@ -50,7 +50,7 @@ async def run_daily_brief(
         f"Recent meeting notes: {', '.join(meeting_notes[-3:]) or 'none'}\n"
         f"Unresolved action items: {len(action_items)}\n"
         f"Yesterday's agent operations: {dict(list(agent_summary.items())[:5])}\n"
-        f"Total vault notes: {len(all_hashes)}\n"
+        f"Total vault notes: {len(hash_by_path)}\n"
     )
 
     try:

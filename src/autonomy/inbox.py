@@ -126,10 +126,12 @@ class LibrarianInbox:
     # ── consolidate ───────────────────────────────────────────────────
 
     async def consolidate(self) -> int:
-        """Use the LLM to deduplicate, categorize, and merge pending items.
+        """Deduplicate, recategorize, and merge pending items into the curated list.
 
+        Always re-processes the full curated list through the LLM, even
+        when there are no pending items, so categories stay tidy.
         Also cleans up expired executed items first.
-        Returns the number of items in the final curated list.
+        Returns the number of curated items after consolidation.
         """
         from src.llm.factory import build_llm
 
@@ -138,9 +140,6 @@ class LibrarianInbox:
 
         content = self._read()
         body, pending = self._split_pending(content)
-        if not pending:
-            log.info("Inbox consolidate: nothing pending")
-            return 0
 
         # Collect all existing curated lines (categories + children + done)
         curated_lines = [
@@ -149,10 +148,14 @@ class LibrarianInbox:
             if re.match(r"^( {4})?- (\[[ x]\] |~~)", line)
         ]
 
+        if not curated_lines and not pending:
+            log.info("Inbox consolidate: nothing to process")
+            return 0
+
         llm = build_llm(self._cfg, tier="heavy")
         prompt = _CONSOLIDATE_PROMPT.format(
             curated="\n".join(curated_lines) if curated_lines else "(empty)",
-            pending="\n".join(pending),
+            pending="\n".join(pending) if pending else "(none)",
         )
         result = await llm.ainvoke(prompt)
         merged_text = result.content if hasattr(result, "content") else str(result)
@@ -182,15 +185,16 @@ class LibrarianInbox:
         )
         self._write(new_content)
 
-        promoted = sum(1 for ln in merged_lines if ln.startswith("    - [ ]"))
+        item_count = sum(1 for ln in merged_lines if ln.startswith("    - "))
         categories = sum(1 for ln in merged_lines if re.match(r"^- \[ \] \*\*", ln))
         log.info(
-            "Inbox consolidate: %d pending → %d items in %d categories",
+            "Inbox consolidate: %d curated + %d pending → %d items in %d categories",
+            len(curated_lines),
             len(pending),
-            promoted,
+            item_count,
             categories,
         )
-        return promoted
+        return item_count
 
     def cleanup_executed(self) -> int:
         """Remove executed items older than inbox_retention_hours. Returns count removed."""

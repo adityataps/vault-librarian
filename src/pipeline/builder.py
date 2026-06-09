@@ -14,6 +14,7 @@ PIPELINE_ORDER = [
     "meeting_enricher",
     "linker",
     "moc_maintainer",
+    "auditor",
 ]
 
 # Maps agent name → "module:function" for lazy import
@@ -24,6 +25,7 @@ _AGENT_REGISTRY: dict[str, str] = {
     "linker": "src.agents.linker:linker_node",
     "moc_maintainer": "src.agents.moc_maintainer:moc_maintainer_node",
     "inline_directive": "src.agents.inline_directive:inline_directive_node",
+    "auditor": "src.agents.auditor:auditor_quick_node",
 }
 
 

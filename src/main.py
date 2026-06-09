@@ -111,6 +111,7 @@ def log(
 @app.command("install-hooks")
 def install_hooks() -> None:
     """Install git post-commit hook into vault .git/hooks/."""
+    import os
     from pathlib import Path
 
     from src.config import get_config
@@ -118,12 +119,28 @@ def install_hooks() -> None:
     cfg = get_config()
     hook_path = Path(cfg.vault_path) / ".git" / "hooks" / "post-commit"
     hook_path.parent.mkdir(parents=True, exist_ok=True)
-    hook_path.write_text(
-        "#!/bin/sh\ncurl -s -X POST http://localhost:8000/webhook/git "
-        f"-H 'X-Librarian-Secret: {cfg.secret}' || true\n"
+
+    # Secret is read from the environment inside the hook — never embedded in the file.
+    # Atomic open with 0o700 (owner-only rwx) avoids the chmod-after-write race
+    # and prevents other users from reading the script.
+    script = (
+        "#!/bin/sh\n"
+        'SECRET="${LIBRARIAN_SECRET:-}"\n'
+        'if [ -z "$SECRET" ]; then\n'
+        "  echo 'vault-librarian: LIBRARIAN_SECRET not set, skipping webhook' >&2\n"
+        "  exit 0\n"
+        "fi\n"
+        "curl -s -X POST http://localhost:8000/webhook/git "
+        '-H "X-Librarian-Secret: $SECRET" || true\n'
     )
-    hook_path.chmod(0o755)
+    fd = os.open(str(hook_path), os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o700)
+    try:
+        os.write(fd, script.encode())
+    finally:
+        os.close(fd)
+
     console.print(f"[green]✓[/] Hook installed at {hook_path}")
+    console.print("  Set [cyan]LIBRARIAN_SECRET[/] in your shell environment before committing.")
 
 
 if __name__ == "__main__":

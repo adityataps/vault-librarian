@@ -6,7 +6,7 @@ import warnings
 from typing import Any
 
 from pydantic import Field, PrivateAttr, field_validator
-from pydantic_settings import BaseSettings, EnvSettingsSource, SettingsConfigDict
+from pydantic_settings import BaseSettings, DotEnvSettingsSource, EnvSettingsSource, SettingsConfigDict
 
 
 class _CommaSupportedEnvSource(EnvSettingsSource):
@@ -21,8 +21,20 @@ class _CommaSupportedEnvSource(EnvSettingsSource):
         return super().decode_complex_value(field_name, field, value)
 
 
+class _CommaSupportedDotEnvSource(DotEnvSettingsSource):
+    """DotEnv source that allows comma-separated values for list[str] fields."""
+
+    def decode_complex_value(self, field_name: str, field: Any, value: Any) -> Any:
+        origin = typing.get_origin(field.annotation)
+        if origin is list and isinstance(value, str):
+            stripped = value.strip()
+            if not stripped.startswith("["):
+                return stripped
+        return super().decode_complex_value(field_name, field, value)
+
+
 class AppConfig(BaseSettings):
-    model_config = SettingsConfigDict(env_prefix="LIBRARIAN_", extra="ignore")
+    model_config = SettingsConfigDict(env_prefix="LIBRARIAN_", env_file=".env", extra="ignore")
 
     # LLM
     llm_provider: str = "copilot"
@@ -103,11 +115,18 @@ class AppConfig(BaseSettings):
         **kwargs: Any,
     ) -> tuple[Any, ...]:
         sources = super().settings_customise_sources(settings_cls, **kwargs)
-        # Replace the default EnvSettingsSource with our comma-aware subclass
-        return tuple(
-            _CommaSupportedEnvSource(settings_cls) if isinstance(s, EnvSettingsSource) else s
-            for s in sources
-        )
+        # Replace env and dotenv sources with comma-aware subclasses
+        result = []
+        for s in sources:
+            if type(s) is DotEnvSettingsSource:
+                result.append(_CommaSupportedDotEnvSource(
+                    settings_cls, env_file=s.env_file, env_file_encoding=s.env_file_encoding,
+                ))
+            elif type(s) is EnvSettingsSource:
+                result.append(_CommaSupportedEnvSource(settings_cls))
+            else:
+                result.append(s)
+        return tuple(result)
 
     def get_autonomy(self, agent: str) -> str:
         return self.autonomy_overrides.get(agent, self.autonomy_default)

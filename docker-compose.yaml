@@ -1,45 +1,8 @@
-name: vault-crawler
+name: vault-librarian
 services:
-  postgres:
-    image: pgvector/pgvector:pg18-trixie
-    container_name: vault-crawler-postgres
-    environment:
-      POSTGRES_USER: ${POSTGRES_USER:-vault_crawler}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-vault_crawler_dev}
-      POSTGRES_DB: ${POSTGRES_DB:-vault_crawler}
-    ports:
-      - "${POSTGRES_PORT:-5432}:5432"
-    volumes:
-      - ./docker-volumes/postgres:/var/lib/postgresql
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-vault_crawler} -d ${POSTGRES_DB:-vault_crawler}"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    networks:
-      - vault-crawler-net
-
-  redis:
-    image: redis:8-trixie
-    container_name: vault-crawler-redis
-    command: redis-server --appendonly yes ${REDIS_PASSWORD:+--requirepass $REDIS_PASSWORD}
-    ports:
-      - "${REDIS_PORT:-6379}:6379"
-    volumes:
-      - ./docker-volumes/redis:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 3s
-      retries: 5
-    networks:
-      - vault-crawler-net
-    profiles:
-      - redis
-
   ollama:
     image: ollama/ollama:latest
-    container_name: vault-crawler-ollama
+    container_name: vault-librarian-ollama
     ports:
       - "11434:11434"
     volumes:
@@ -52,8 +15,6 @@ services:
       timeout: 10s
       retries: 3
       start_period: 60s
-    networks:
-      - vault-crawler-net
     profiles:
       - ollama
     # Uncomment the deploy section below if you have NVIDIA GPU
@@ -64,12 +25,3 @@ services:
     #         - driver: nvidia
     #           count: all
     #           capabilities: [gpu]
-
-networks:
-  vault-crawler-net:
-    driver: bridge
-
-volumes:
-  postgres-data:
-  redis-data:
-  ollama-data:

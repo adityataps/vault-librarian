@@ -1,28 +1,13 @@
-# Vault Crawler
+# Vault Librarian
 
-Multi-agent Obsidian vault management service powered by CrewAI.
+Autonomous multi-agent Obsidian vault management service powered by LangGraph.
 
 ## Quick Start
 
 ### 1. Prerequisites
 - Python 3.11+
 - [uv](https://github.com/astral-sh/uv) (or pip)
-- [Podman](https://podman.io/) + podman-compose (`brew install podman podman-compose`)
-  - **or** Docker + Docker Compose
-
-#### Podman users: one-time setup
-Configure Podman to use `podman-compose` as its compose provider so `podman compose` and `podman-compose` are interchangeable:
-
-```bash
-mkdir -p ~/.config/containers
-cat >> ~/.config/containers/containers.conf << 'EOF'
-[engine]
-compose_providers = ["/opt/homebrew/bin/podman-compose"]
-compose_warning_logs = false
-EOF
-```
-
-Without this, `podman compose` delegates to the system `docker-compose` binary which uses incompatible network labels.
+- (Optional) Docker or Podman — only needed for local Ollama
 
 ### 2. Configuration
 
@@ -32,103 +17,95 @@ cp .env.example .env
 ```
 
 Edit `.env` with your settings:
-- `OBSIDIAN_VAULT_PATH` — Path to your Obsidian vault
-- `GITHUB_TOKEN` — GitHub token for Copilot API
-- `ANTHROPIC_API_KEY` — (Optional) Anthropic API key
+- `LIBRARIAN_VAULT_PATH` — Path to your Obsidian vault
+- `LIBRARIAN_LLM_API_KEY` — GitHub token (for Copilot) or Anthropic API key
+- `LIBRARIAN_LLM_PROVIDER` — `copilot` (default), `anthropic`, or `ollama`
+- `LIBRARIAN_SECRET` — Shared secret for MCP/API auth
 
-### 3. Start Infrastructure
-
-Use the provided startup script which automatically enables services based on your `.env`:
-
-```bash
-./scripts/start-services.sh
-```
-
-The script will:
-- Start Postgres (always)
-- Start Redis if `ENABLE_REDIS=true`
-- Start Ollama if `ENABLE_OLLAMA=true`
-- Auto-pull Ollama models specified in `OLLAMA_MODELS`
-
-**Manual Docker Compose:**
-```bash
-# Minimal (Postgres only)
-docker compose up -d
-
-# With Redis
-docker compose --profile redis up -d
-
-# With Ollama
-docker compose --profile ollama up -d
-
-# Everything
-docker compose --profile redis --profile ollama up -d
-```
-
-### 4. Install Dependencies
+### 3. Install Dependencies
 
 ```bash
 uv sync
 ```
 
-### 5. Run Migrations
+### 4. Run Migrations
 
 ```bash
 uv run alembic upgrade head
 ```
 
-### 6. Start the Service
+### 5. Start the Service
 
 ```bash
-uv run vault-crawler serve
+uv run vault-librarian serve
 ```
 
 Or with explicit options:
-
 ```bash
-uv run vault-crawler serve --host 0.0.0.0 --port 8000
+uv run vault-librarian serve --host 0.0.0.0 --port 8000
 ```
 
-### CLI Commands
+### (Optional) Local Ollama
+
+If using Ollama as an LLM provider, start it via Docker Compose:
+```bash
+docker compose --profile ollama up -d
+```
+
+Or use the helper script:
+```bash
+./scripts/start-services.sh
+```
+
+## CLI Commands
 
 | Command | Description |
 |---|---|
-| `vault-crawler serve` | Start the API server + scheduler + file watcher |
-| `vault-crawler scan` | Scan vault and print a note summary |
-| `vault-crawler index` | Upsert all vault notes into storage |
-| `vault-crawler migrate` | Run Alembic database migrations |
-| `vault-crawler status` | Check connectivity of all components |
+| `vault-librarian serve` | Start the API server + scheduler + file watcher |
+| `vault-librarian scan` | Scan vault and print a note summary |
+| `vault-librarian index` | Upsert all vault notes into vector storage |
+| `vault-librarian migrate` | Run Alembic database migrations |
+| `vault-librarian status` | Check connectivity of all components |
 
-Run `vault-crawler <command> --help` for per-command options.
+Run `vault-librarian <command> --help` for per-command options.
 
 ## Architecture
 
 See [docs/design/architecture.md](docs/design/architecture.md) for full architecture overview.
 
 ### Agents
-- **Librarian** — Classifies and files new notes
-- **Auditor** — Daily re-evaluation of note placement
-- **Linker** — Cross-references related notes
-- **Archivist** — Detects stale notes and broken links
-- **Summarizer** — Extracts action items from meetings
-- **Jira Sync** — Syncs Jira tickets to vault notes
+- **Librarian** — Classifies and files new notes into the correct vault folder
+- **Formatter** — Normalizes frontmatter and note structure
+- **Linker** — Cross-references related notes via wikilinks
+- **Meeting Enricher** — Extracts action items and context from meeting notes
+- **MoC Maintainer** — Keeps Maps of Content up to date
+- **Scaffolder** — Generates note templates from inline directives
+- **Inline Directive** — Processes `vault-librarian::` directives embedded in notes
+- **Auditor** — Scheduled sweep for broken links, orphans, and misplaced notes
+- **Daily Brief** — Generates a daily activity summary
+- **Weekly Review** — Produces a weekly vault health report
 
 ### Storage
-- **PostgreSQL + pgvector** — Primary state and semantic search
-- **Redis** — Optional caching and event bus
-- **SQLite** — Dev mode fallback
+- **SQLite** — Primary relational state (via SQLAlchemy + aiosqlite)
+- **LanceDB** — Embedded vector search (stored in `.librarian/lancedb/` inside the vault)
 
 ### LLM Providers
 - **GitHub Copilot** — Primary (GitHub Models API)
 - **Anthropic Claude** — Alternative
-- **Ollama** — Local models
+- **Ollama** — Local models (requires Docker or native install)
+
+### MCP Server
+
+An MCP (Model Context Protocol) server is mounted at `/mcp`, enabling LLM tool-use integrations to interact with the vault programmatically. Authenticated via `X-Librarian-Secret` header.
+
+### Scheduler
+
+APScheduler runs scheduled agents (Auditor, Daily Brief, Weekly Review) on configurable cron expressions. See `LIBRARIAN_*_SCHEDULE` env vars.
 
 ## Documentation
 
 - [Architecture Overview](docs/design/architecture.md)
-- [Data Models](docs/design/data-models.md)
-- [Agent Behaviors](docs/features/agents.md)
-- [LLM Routing](docs/features/llm-routing.md)
+- [Configuration Reference](docs/configuration.md)
 
 ## Development
 
@@ -145,22 +122,6 @@ uv run ruff check .
 ### Type Check
 ```bash
 uv run mypy src/
-```
-
-## CLI Commands
-
-```bash
-# Start API server
-uv run python -m src.main serve
-
-# Watch vault for changes
-uv run python -m src.main watch
-
-# Run Jira sync manually
-uv run python -m src.main sync
-
-# Run daily audit manually
-uv run python -m src.main audit
 ```
 
 ## License

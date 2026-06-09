@@ -29,6 +29,6 @@ def build_llm(cfg: AppConfig) -> BaseChatModel:
 
 
 def build_embedder(cfg: AppConfig) -> Embeddings:
-    from langchain_community.embeddings import HuggingFaceEmbeddings
+    from langchain_huggingface import HuggingFaceEmbeddings
 
     return HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")

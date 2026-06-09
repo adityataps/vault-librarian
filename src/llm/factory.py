@@ -29,6 +29,16 @@ def build_llm(cfg: AppConfig) -> BaseChatModel:
 
 
 def build_embedder(cfg: AppConfig) -> Embeddings:
-    from langchain_huggingface import HuggingFaceEmbeddings
+    match cfg.embedding_provider:
+        case "local":
+            from langchain_huggingface import HuggingFaceEmbeddings
 
-    return HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
+            return HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
+        case "openai" | _:
+            from langchain_openai import OpenAIEmbeddings
+
+            return OpenAIEmbeddings(
+                base_url="https://models.inference.ai.azure.com",
+                api_key=cfg.llm_api_key,
+                model="text-embedding-3-small",
+            )

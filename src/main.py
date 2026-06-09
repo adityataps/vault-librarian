@@ -4,9 +4,13 @@ from __future__ import annotations
 
 import logging
 
+import truststore
 import typer
 from rich.console import Console
 from rich.logging import RichHandler
+
+# Use the OS trust store for SSL so corporate/system CAs are respected.
+truststore.inject_into_ssl()
 
 app = typer.Typer(name="vault-librarian", no_args_is_help=True)
 console = Console()

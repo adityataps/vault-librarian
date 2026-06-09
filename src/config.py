@@ -41,6 +41,9 @@ class AppConfig(BaseSettings):
     llm_model: str = "gpt-4o"
     llm_api_key: str = ""
 
+    # Embeddings: "openai" uses text-embedding-3-small via API, "local" uses HuggingFace all-MiniLM-L6-v2
+    embedding_provider: str = "openai"
+
     # Vault
     vault_path: str = ""
     vault_excluded_folders: list[str] = Field(

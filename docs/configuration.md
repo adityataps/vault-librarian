@@ -32,6 +32,14 @@ uv run vault-librarian serve
 | `LIBRARIAN_LLM_MODEL` | | `gpt-4o` | Model ID for the chosen provider |
 | `LIBRARIAN_LLM_API_KEY` | | — | API key (GitHub token for Copilot, or Anthropic key) |
 
+### Embeddings
+
+| Variable | Required | Default | Description |
+|---|---|---|---|
+| `LIBRARIAN_EMBEDDING_PROVIDER` | | `openai` | `openai` (text-embedding-3-small via API) or `local` (HuggingFace all-MiniLM-L6-v2) |
+
+The embedding provider is independent of the LLM provider. Use `local` when you have network access to HuggingFace (e.g. off corporate VPN) and `openai` when you have a GitHub Models API key.
+
 ### Agents
 
 | Variable | Required | Default | Description |

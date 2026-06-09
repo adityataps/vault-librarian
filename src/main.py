@@ -112,6 +112,23 @@ def log(
     asyncio.run(_run())
 
 
+@app.command("consolidate-inbox")
+def consolidate_inbox() -> None:
+    """Deduplicate and consolidate the Librarian Inbox using the LLM."""
+    import asyncio
+
+    from src.autonomy.inbox import LibrarianInbox
+    from src.config import get_config
+    from src.vault.tools import VaultTools
+
+    _setup_logging()
+    cfg = get_config()
+    tools = VaultTools(cfg.vault_path)
+    inbox = LibrarianInbox(cfg, tools)
+    count = asyncio.run(inbox.consolidate())
+    console.print(f"[green]✓[/] Consolidated inbox — [bold]{count}[/] curated items")
+
+
 @app.command("install-hooks")
 def install_hooks() -> None:
     """Install git post-commit hook into vault .git/hooks/."""

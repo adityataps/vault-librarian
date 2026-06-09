@@ -74,12 +74,13 @@ class VaultTools:
     def git_commit(self, message: str) -> None:
         if self._repo is None:
             return
+        if not self._repo.is_dirty(untracked_files=True):
+            return
         self._repo.git.add(A=True)
-        if self._repo.is_dirty(index=True):
-            self._repo.index.commit(
-                message,
-                author=git.Actor("vault-librarian[bot]", "librarian@local"),
-            )
+        self._repo.index.commit(
+            message,
+            author=git.Actor("vault-librarian[bot]", "librarian@local"),
+        )
 
     def has_directive_tags(self, rel: str) -> bool:
         try:

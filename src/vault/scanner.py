@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from pathlib import Path
 
 from src.config import AppConfig
 from src.vault.parser import NoteMetadata, parse_note
+
+log = logging.getLogger(__name__)
 
 
 @dataclass
@@ -29,8 +32,8 @@ class VaultScanner:
                 continue
             try:
                 yield parse_note(str(md), str(self.root))
-            except Exception:
-                pass
+            except Exception as exc:
+                log.warning("Could not parse %s: %s", md, exc)
 
     def scan(self) -> ScanResult:
         notes, errors = [], 0
@@ -41,4 +44,4 @@ class VaultScanner:
                 notes.append(parse_note(str(md), str(self.root)))
             except Exception:
                 errors += 1
-        return ScanResult(notes=notes, total=len(notes), errors=errors)
+        return ScanResult(notes=notes, total=len(notes) + errors, errors=errors)

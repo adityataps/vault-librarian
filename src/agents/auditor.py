@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 import re
 from datetime import date, datetime, timezone, timedelta
@@ -41,6 +42,7 @@ def auditor_quick_node(state: VaultState, tools: VaultTools, cfg: AppConfig, **_
 
     changes = []
     autonomy = cfg.get_autonomy("auditor")
+    inbox = LibrarianInbox(cfg, tools) if autonomy != "full" else None
     for link in broken:
         stub_rel = f"Reference/{link}.md"
         if autonomy == "full":
@@ -48,7 +50,7 @@ def auditor_quick_node(state: VaultState, tools: VaultTools, cfg: AppConfig, **_
                 tools.create_note(stub_rel, f"# {link}\n\n_stub — created by librarian_\n")
                 changes.append(f"Auditor: created stub for [[{link}]]")
         else:
-            LibrarianInbox(cfg, tools).propose(f"Create stub for [[{link}]] in `Reference/`")
+            inbox.propose(f"Create stub for [[{link}]] in `Reference/`")
             changes.append(f"Auditor: proposed stub for [[{link}]]")
 
     return {"changes": changes}
@@ -63,40 +65,40 @@ async def run_auditor_full(
     """Full-vault scheduled sweep — writes Vault Audit YYYY-MM-DD.md."""
     import os
 
-    from src.storage.repository import NoteRepo
     from src.vault.scanner import VaultScanner
 
     today = date.today().isoformat()
     stale_cutoff = datetime.now(timezone.utc) - timedelta(days=cfg.stale_days)
 
-    note_repo = NoteRepo(db)
-    stored = await note_repo.all_hashes()
+    def _scan_blocking():
+        _broken: dict[str, list[str]] = {}
+        _orphans: list[str] = []
+        _stale: list[str] = []
+        _unprocessed: list[str] = []
+        _conflict: list[str] = []
 
-    broken_links: dict[str, list[str]] = {}
-    orphans: list[str] = []
-    stale: list[str] = []
-    unprocessed: list[str] = []
+        for meta in VaultScanner(cfg).iter_notes():
+            links = _WIKI_LINK_RE.findall(meta.raw_content)
+            for lnk in links:
+                if not _find_file(lnk, tools):
+                    _broken.setdefault(lnk, []).append(meta.path)
+            if not links and meta.folder not in ("Templates", ".librarian", "Reference"):
+                _orphans.append(meta.path)
+            mtime = datetime.fromtimestamp(Path(meta.abs_path).stat().st_mtime, tz=timezone.utc)
+            if mtime < stale_cutoff:
+                _stale.append(meta.path)
+            if "<agent-" in meta.raw_content:
+                _unprocessed.append(meta.path)
 
-    for meta in VaultScanner(cfg).iter_notes():
-        links = _WIKI_LINK_RE.findall(meta.raw_content)
-        for lnk in links:
-            if not _find_file(lnk, tools):
-                broken_links.setdefault(lnk, []).append(meta.path)
-        if not links and meta.folder not in ("Templates", ".librarian"):
-            orphans.append(meta.path)
-        mtime = datetime.fromtimestamp(Path(meta.abs_path).stat().st_mtime, tz=timezone.utc)
-        if mtime < stale_cutoff:
-            stale.append(meta.path)
-        if "<agent-" in meta.raw_content:
-            unprocessed.append(meta.path)
+        for root, dirs, _ in os.walk(cfg.vault_path):
+            for d in dirs:
+                if re.search(r"\s+\d+$", d):
+                    rel = str(Path(root).relative_to(cfg.vault_path) / d)
+                    _conflict.append(rel)
 
-    # Duplicate conflict folders (e.g. "docs/superpowers 2")
-    conflict_folders: list[str] = []
-    for root, dirs, _ in os.walk(cfg.vault_path):
-        for d in dirs:
-            if re.search(r"\s+\d+$", d):
-                rel = str(Path(root).relative_to(cfg.vault_path) / d)
-                conflict_folders.append(rel)
+        return _broken, _orphans, _stale, _unprocessed, _conflict
+
+    broken_links, orphans, stale, unprocessed, conflict_folders = await asyncio.to_thread(_scan_blocking)
 
     report_lines = [
         f"# Vault Audit — {today}\n",

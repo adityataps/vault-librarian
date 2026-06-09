@@ -3,7 +3,7 @@ _2026-06-08_
 
 ## Overview
 
-A persistent, autonomous multi-agent service that manages an Obsidian vault. Agents run on file events, scheduled jobs, git hooks, and external webhooks (n8n). All changes are written directly to vault files with no approval step; git history and an in-app audit log serve as the review mechanism. An MCP server exposes vault operations to Claude Code and Copilot CLI.
+A persistent, autonomous multi-agent service that manages an Obsidian vault. Agents run on file events, scheduled jobs, git hooks, and external webhooks (n8n). Agent autonomy is configurable per-agent — from fully automatic to supervised (propose-only). All config lives in a hot-reloadable vault note. An MCP server exposes vault operations to Claude Code and Copilot CLI. An activity log note provides Obsidian-native observability over all agent actions.
 
 This is a complete rewrite of the previous `vault-crawler` repo. No existing code is carried forward.
 
@@ -79,6 +79,34 @@ vault-librarian serve --agents librarian,formatter,auditor
 
 Unenrolled agents are never instantiated and never appear in the expected-agents map for reconciliation. This lets you run a lightweight mode (e.g. just `librarian,formatter`) during development or on low-powered hardware.
 
+### Autonomy levels
+
+Each agent operates in one of three modes. The global default applies to all agents; per-agent overrides take precedence. Both are set in `.librarian/config.md` (see Section 6).
+
+| Level | Behaviour |
+|---|---|
+| `full` | Agent executes immediately, writes directly to vault files. |
+| `supervised` | Agent calls `propose_action()` — appends a `- [ ]` item to `.librarian/Inbox.md` instead of writing. Execution happens when the user checks the item and saves. |
+| `off` | Agent is enrolled but never runs. Useful for temporarily disabling without removing from config. |
+
+**Librarian Inbox** lives at `.librarian/Inbox.md`. All supervised agents write proposals here regardless of which agent proposed them — one place to review everything. Checked items are picked up by the execution loop and marked `✅ Executed — YYYY-MM-DD`.
+
+Sensible defaults — agents whose actions are low-risk default to `full`; agents that move, merge, or delete default to `supervised`:
+
+```yaml
+# .librarian/config.md frontmatter defaults
+agents:
+  autonomy: supervised       # global default
+  overrides:
+    formatter: full          # frontmatter edits are safe
+    inline_directive: full   # explicitly requested by user
+    meeting_enricher: full   # extracting action items is low risk
+    linker: supervised       # modifies other notes
+    librarian: supervised    # moving files is destructive
+    moc_maintainer: supervised
+    auditor: supervised      # destructive ops always supervised
+```
+
 ### Startup reconciliation
 
 On every startup the service scans all vault files and compares current content hashes against the `agent_runs` table. Any file whose hash has no completed run record for all expected agents is re-queued. This ensures no events are silently dropped during downtime.
@@ -104,7 +132,8 @@ On every startup the service scans all vault files and compares current content 
 |---|---|---|
 | **Daily Brief** | Nightly (configurable) | Synthesizes `Daily Brief — YYYY-MM-DD.md`: open Jira tickets, recent meetings, unresolved action items from last 7 days, vault health score. |
 | **Weekly Review** | Sunday evening | Synthesizes `Weekly Review — YYYY-WNN.md`: closed tickets, meetings attended, key decisions logged, action items resolved, notable learnings. |
-| **Auditor** | Nightly + on-demand | Full-vault sweep: broken links, orphaned notes, stale notes (90+ days), misclassified types, duplicate folder detection (`Folder 2`/`Folder 3` patterns), unprocessed `<agent-*>` tags. Creates stubs for broken wiki-links. Writes `Vault Audit — YYYY-MM-DD.md` with an actionable TODO list (see Section 5). |
+| **Auditor (quick)** | Every file event (same pipeline as other agents) | Lightweight check on the affected note and its immediate linked notes only — broken links, new orphan status, root-level strays. Cheap, runs in milliseconds. |
+| **Auditor (full)** | Scheduled (configurable, default nightly) + on-demand | Full-vault sweep: broken links, orphaned notes, stale notes, misclassified types, duplicate folder detection, unprocessed `<agent-*>` tags. Creates stubs for broken wiki-links. Writes `Vault Audit — YYYY-MM-DD.md` with actionable TODO list (see Section 5). |
 
 ### On-demand agents
 
@@ -201,7 +230,74 @@ This gives human-in-the-loop control for destructive operations (moves, merges, 
 
 ---
 
-## 6. Inline Directives
+## 6. Vault Config File
+
+The service is configured through `.librarian/config.md` — a standard Obsidian note inside the vault. It is version-controlled with the vault and editable in Obsidian like any other note.
+
+### Format
+
+YAML frontmatter holds structured settings. Markdown body sections contain **natural language instructions** injected directly into each agent's system prompt at runtime — no Python required to customise agent behaviour.
+
+````markdown
+---
+agents:
+  autonomy: supervised
+  overrides:
+    formatter: full
+    inline_directive: full
+    meeting_enricher: full
+debounce:
+  standard: 3.0
+  directive: 0.5
+auditor:
+  quick: true
+  schedule: "0 2 * * *"
+daily_brief:
+  schedule: "0 7 * * *"
+weekly_review:
+  schedule: "0 18 * * 0"
+---
+
+## Librarian
+
+When classifying notes, use this folder taxonomy:
+- Projects/ — active work with deliverables
+- Career/ — interview prep, retrospectives, STAR stories
+- Meetings/ — any meeting, desk check, sprint demo
+- Jira/ — ticket notes matching AICOE-* pattern
+- Personal/ — anything non-work related
+
+Prefer Projects/ over Career/ for AI platform work even if it
+mentions interview topics.
+
+## Formatter
+
+Always add `company: finastra` to notes mentioning Finastra,
+AICOE, or any agent-platform repo.
+
+## Auditor
+
+Mark notes as stale after 60 days, not 90.
+````
+
+### Hot reload
+
+The config file path has a dedicated handler in the dispatcher — it never dispatches agents, only reloads config. On save:
+
+1. Config is re-parsed and validated.
+2. Updated settings are applied to the shared `AppConfig` object immediately.
+3. Schedule changes trigger APScheduler job updates at runtime.
+4. A log entry is appended to `.librarian/Activity.md`: `Config reloaded — N agents, autonomy: supervised`.
+
+No restart required. Changes apply to the next agent run.
+
+### Scaffolding on first run
+
+On first startup, if `.librarian/config.md` does not exist, the Scaffolder generates it pre-populated with the vault's detected folder structure and sensible defaults. On subsequent startups, frontmatter takes precedence over `config.yaml` and env vars (vault config is the highest-priority source).
+
+---
+
+## 7. Inline Directives
 
 Embedding a directive tag in any note triggers the Inline Directive agent with a 0.5s debounce.
 
@@ -223,7 +319,70 @@ Unprocessed tags act as a natural TODO queue visible in the Auditor report.
 
 ---
 
-## 7. Storage
+## 8. Audit Trail
+
+Three layers serve different observability needs.
+
+### `.librarian/Activity.md` — primary observable surface
+
+A rolling vault note appended to in real-time, newest entries first. Uses Obsidian callout syntax for visual scanning without reading every line:
+
+```markdown
+## 2026-06-08 · 14:32
+
+> [!success] Librarian
+> Moved `Sri's Bach Party Gameplan.md` → `Personal/`
+
+> [!info] Formatter
+> `Projects/Agent Platform.md` — added `created`, `modified`; normalized 2 tags
+
+> [!tip] Linker
+> `Meetings/Sprint Demo 2026-05-20.md` — injected 3 backlinks: [[Agent Platform]], [[Observability]], [[Cloud Run]]
+
+> [!warning] Auditor → Inbox
+> Proposed: merge `Desk Check 2026-04-30 2` into `Desk Check 2026-04-30`
+
+> [!failure] Librarian
+> Could not classify `scratch.md` — no content. Skipped.
+```
+
+| Callout type | Meaning |
+|---|---|
+| `success` | Agent executed directly (full autonomy) |
+| `info` | Non-destructive metadata change |
+| `tip` | Enrichment (backlinks, action items) |
+| `warning` | Proposed to Inbox (supervised autonomy) |
+| `failure` | Skipped or errored |
+
+Rolling window of configurable length (default: last 7 days). Older entries auto-truncated. Config reloads also appear here.
+
+### SQLite `audit_log` — authoritative queryable history
+
+The activity note is a human-readable view over the `audit_log` table. Exposed via MCP tools (`get_audit_report`, `get_agent_runs`) and the CLI:
+
+```
+vault-librarian log [--agent formatter] [--note path] [--since 7d] [--limit 50]
+```
+
+### Rich terminal output — live feed
+
+When `vault-librarian serve` is running, each agent action is printed in real-time using Rich: color-coded by agent, with timing and outcome. Good for watching the system during initial setup or debugging.
+
+### Daily Brief integration
+
+The Daily Brief includes a "Yesterday's agent activity" summary:
+
+```markdown
+## 🤖 Agent Activity (yesterday)
+- Formatter touched 4 notes
+- Librarian moved 2 notes, proposed 1 item to Inbox
+- Auditor added 3 items to Inbox
+- 0 errors
+```
+
+---
+
+## 9. Storage
 
 ### SQLite schema
 
@@ -280,7 +439,7 @@ LanceDB is a viable drop-in replacement (Rust-backed, faster at scale, same embe
 
 ---
 
-## 8. LLM Provider Abstraction
+## 10. LLM Provider Abstraction
 
 ```python
 def build_llm(config: LLMConfig) -> BaseChatModel:
@@ -301,7 +460,7 @@ All agents receive `llm: BaseChatModel` via dependency injection. Switching prov
 
 ---
 
-## 9. HTTP + MCP API
+## 11. HTTP + MCP API
 
 ### Webhook / REST endpoints (FastAPI)
 
@@ -342,7 +501,7 @@ Jira webhook → n8n → POST /webhook/jira {ticket_id, status}
 
 ---
 
-## 10. Obsidian Plugin Compatibility
+## 12. Obsidian Plugin Compatibility
 
 | Plugin | Compatibility note |
 |---|---|
@@ -354,7 +513,7 @@ Jira webhook → n8n → POST /webhook/jira {ticket_id, status}
 
 ---
 
-## 11. CLI
+## 13. CLI
 
 ```
 vault-librarian serve              Start API server + scheduler + file watcher
@@ -364,11 +523,12 @@ vault-librarian index              Reconcile all notes into SQLite + ChromaDB
 vault-librarian install-hooks      Install post-commit hook into vault's .git/hooks/
 vault-librarian status             Health check: storage, LLM providers, watcher
 vault-librarian migrate            Run database migrations
+vault-librarian log                Query audit log (--agent, --note, --since, --limit)
 ```
 
 ---
 
-## 12. Technology Stack
+## 14. Technology Stack
 
 | Layer | Technology |
 |---|---|
@@ -385,15 +545,15 @@ vault-librarian migrate            Run database migrations
 
 ---
 
-## 13. Out of Scope (v1)
+## 15. Out of Scope (v1)
 
 - Chat / conversational query interface (handled by Claude Code + Copilot CLI via MCP)
 - Multi-vault support
 - Real-time collaboration / conflict resolution between users
 - Cloud hosting / containerisation (runs locally or on homelab)
 
-## 14. Future Consideration
+## 16. Future Consideration
 
-- Web UI dashboard — status view, agent run history, vault health score, actionable item management
+- Web UI dashboard — status view, agent run history, vault health score, Inbox management
 - LanceDB as a drop-in ChromaDB replacement (better performance at scale, same embedded model)
 - STAR story miner — scan Project and Career notes for STAR story candidates (interview/perf review prep)

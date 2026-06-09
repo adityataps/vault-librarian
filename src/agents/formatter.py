@@ -8,6 +8,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from pydantic import BaseModel
 
 from src.agents.state import VaultState
+from src.autonomy.inbox import LibrarianInbox
 from src.config import AppConfig
 from src.vault.tools import VaultTools
 
@@ -39,7 +40,7 @@ def _strip_dataview(content: str) -> str:
 def formatter_node(state: VaultState, llm, tools: VaultTools, cfg: AppConfig, **_) -> dict:
     instructions = cfg.get_agent_instructions("formatter")
     today = date.today().isoformat()
-    system = _SYSTEM_PROMPT.format(today=today)
+    system = _SYSTEM_PROMPT.replace("{today}", today)
     if instructions:
         system += f"\n\nAdditional instructions:\n{instructions}"
 
@@ -69,8 +70,6 @@ def formatter_node(state: VaultState, llm, tools: VaultTools, cfg: AppConfig, **
             log.warning("Formatter write failed: %s", exc)
             return {"changes": [f"Formatter write failed: {exc}"]}
     else:
-        from src.autonomy.inbox import LibrarianInbox
-
         LibrarianInbox(cfg, tools).propose(
             f"Update frontmatter on `{state['note_path']}`: add {fix.fields_to_add}"
         )

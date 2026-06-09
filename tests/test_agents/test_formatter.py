@@ -1,8 +1,8 @@
 from unittest.mock import MagicMock
 
 import pytest
-from src.agents.formatter import formatter_node
 
+from src.agents.formatter import formatter_node
 from src.agents.state import make_state
 
 
@@ -93,12 +93,20 @@ def test_formatter_preserves_dataview_blocks(mock_llm_with_fix, tmp_path):
     )
     tools = VaultTools(str(tmp_path))
     state = make_state("note.md", content, {})
-    result = formatter_node(state, llm=mock_llm_with_fix, tools=tools, cfg=cfg)
-    updated = note.read_text()
-    assert "```dataview" in updated
+    formatter_node(state, llm=mock_llm_with_fix, tools=tools, cfg=cfg)
+    # Verify the LLM received stripped content (dataview SQL not in prompt)
+    invoke_call = mock_llm_with_fix.with_structured_output.return_value.invoke
+    called_messages = invoke_call.call_args[0][0]
+    all_content = " ".join(m.content for m in called_messages)
+    assert 'TABLE status FROM "Jira"' not in all_content
+    assert "[preserved]" in all_content
+    # File should still have the original dataview block
+    assert "```dataview" in note.read_text()
 
 
 def test_formatter_supervised_proposes(mock_llm_with_fix, tmp_path):
+    from unittest.mock import patch
+
     from src.config import AppConfig
     from src.vault.tools import VaultTools
 
@@ -117,7 +125,9 @@ def test_formatter_supervised_proposes(mock_llm_with_fix, tmp_path):
     )
     tools = VaultTools(str(tmp_path))
     state = make_state("note.md", note.read_text(), {})
-    result = formatter_node(state, llm=mock_llm_with_fix, tools=tools, cfg=cfg)
-    # File not modified, proposal written
+    with patch("src.agents.formatter.LibrarianInbox") as mock_inbox_cls:
+        mock_inbox = mock_inbox_cls.return_value
+        result = formatter_node(state, llm=mock_llm_with_fix, tools=tools, cfg=cfg)
     assert "proposed" in " ".join(result["changes"]).lower()
-    assert note.read_text() == "---\ntags: []\n---\n# Note"  # unchanged
+    assert note.read_text() == "---\ntags: []\n---\n# Note"
+    mock_inbox.propose.assert_called_once()

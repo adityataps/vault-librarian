@@ -1,8 +1,8 @@
 from unittest.mock import MagicMock
 
 import pytest
-from src.agents.librarian import librarian_node
 
+from src.agents.librarian import librarian_node
 from src.agents.state import make_state
 
 
@@ -49,6 +49,8 @@ def test_librarian_full_autonomy_moves_note(mock_llm, tmp_path):
 
 
 def test_librarian_supervised_proposes(mock_llm, tmp_path):
+    from unittest.mock import patch
+
     from src.config import AppConfig
     from src.vault.tools import VaultTools
 
@@ -66,11 +68,13 @@ def test_librarian_supervised_proposes(mock_llm, tmp_path):
     )
     tools = VaultTools(str(tmp_path))
     state = make_state("standup.md", "# Standup\n\nNotes.", {})
-    result = librarian_node(state, llm=mock_llm, tools=tools, cfg=cfg)
+    with patch("src.agents.librarian.LibrarianInbox") as mock_inbox_cls:
+        mock_inbox = mock_inbox_cls.return_value
+        result = librarian_node(state, llm=mock_llm, tools=tools, cfg=cfg)
     assert result["note_type"] == "meeting"
-    # File not moved in supervised mode
     assert (tmp_path / "standup.md").exists()
     assert any("Proposed" in c for c in result["changes"])
+    mock_inbox.propose.assert_called_once()
 
 
 def test_librarian_skips_move_if_already_in_correct_folder(mock_llm, tmp_path):

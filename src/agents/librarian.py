@@ -7,6 +7,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from pydantic import BaseModel
 
 from src.agents.state import VaultState
+from src.autonomy.inbox import LibrarianInbox
 from src.config import AppConfig
 from src.vault.tools import VaultTools
 
@@ -56,7 +57,7 @@ def librarian_node(state: VaultState, llm, tools: VaultTools, cfg: AppConfig, **
         )
     except Exception as exc:
         log.warning("Librarian LLM call failed for %s: %s", state["note_path"], exc)
-        return {"changes": [f"Librarian skipped: {exc}"]}
+        return {"note_type": None, "changes": [f"Librarian skipped: {exc}"]}
 
     current_folder = str(Path(state["note_path"]).parent)
     if current_folder == ".":
@@ -65,7 +66,7 @@ def librarian_node(state: VaultState, llm, tools: VaultTools, cfg: AppConfig, **
 
     changes = [f"Classified as {decision.note_type}"]
 
-    if current_folder != target:
+    if Path(current_folder) != Path(target):
         filename = Path(state["note_path"]).name
         dst_rel = f"{target}/{filename}"
         if cfg.get_autonomy("librarian") == "full":
@@ -83,6 +84,4 @@ def librarian_node(state: VaultState, llm, tools: VaultTools, cfg: AppConfig, **
 
 
 def _propose(tools: VaultTools, cfg: AppConfig, action: str) -> None:
-    from src.autonomy.inbox import LibrarianInbox
-
     LibrarianInbox(cfg, tools).propose(action)

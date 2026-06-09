@@ -72,6 +72,7 @@ The embedding provider is independent of the LLM provider. Use `local` when you 
 |---|---|---|---|
 | `LIBRARIAN_DEBOUNCE_STANDARD` | | `3.0` | Seconds to debounce standard file events |
 | `LIBRARIAN_DEBOUNCE_DIRECTIVE` | | `0.5` | Seconds to debounce inline directive events |
+| `LIBRARIAN_DEBOUNCE_INBOX` | | `30.0` | Seconds to wait after Inbox.md save before processing checked items |
 
 ---
 

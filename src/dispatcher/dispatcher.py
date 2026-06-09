@@ -13,7 +13,6 @@ log = logging.getLogger(__name__)
 
 _CONFIG_REL = "Librarian/config.md"
 _INBOX_REL = "Librarian/Inbox.md"
-_INBOX_DEBOUNCE = 2.0  # seconds to wait after last save before processing
 
 
 class Dispatcher:
@@ -44,7 +43,7 @@ class Dispatcher:
             return
         if rel == _INBOX_REL:
             self._debounce.schedule(
-                rel, self._process_inbox, delay=_INBOX_DEBOUNCE
+                rel, self._process_inbox, delay=self._cfg.debounce_inbox
             )
             return
         try:

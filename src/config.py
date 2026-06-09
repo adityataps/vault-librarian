@@ -57,6 +57,7 @@ class AppConfig(BaseSettings):
     log_level: str = "INFO"
     debounce_standard: float = 3.0
     debounce_directive: float = 0.5
+    debounce_inbox: float = 30.0
 
     # Agent enrollment
     enrolled_agents: list[str] = Field(

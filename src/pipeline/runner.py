@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 from pathlib import Path
 
 from src.agents.state import make_state
+from src.audit.activity import ActivityLog
 from src.config import AppConfig
 from src.storage.db import Database
 from src.storage.models import AgentRunRecord, NoteRecord
@@ -28,6 +30,7 @@ class PipelineRunner:
         self._tools = tools
         self._llm = llm
         self._vector_store = vector_store
+        self._activity = ActivityLog(cfg, tools)
 
     async def run(self, rel: str) -> None:
         abs_path = str(Path(self._cfg.vault_path) / rel)
@@ -112,6 +115,13 @@ class PipelineRunner:
                 self._tools.git_commit,
                 f"[librarian] {rel}: {'; '.join(changes[:3])}",
             )
+            outcome = (
+                "proposed" if any("Proposed" in c or "proposed" in c for c in changes)
+                else "error" if any("failed" in c.lower() or "skipped" in c.lower() for c in changes)
+                else "enriched" if any("backlink" in c.lower() or "action item" in c.lower() for c in changes)
+                else "executed"
+            )
+            self._activity.append(f"pipeline({rel})", changes, outcome)
 
     def _pipeline_agents(self) -> list[str]:
         from src.pipeline.builder import PIPELINE_ORDER

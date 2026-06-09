@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from typing import Callable
 
 from watchdog.events import FileSystemEvent, FileSystemEventHandler
 from watchdog.observers import Observer
+
+log = logging.getLogger(__name__)
 
 
 class _Handler(FileSystemEventHandler):
@@ -18,12 +21,19 @@ class _Handler(FileSystemEventHandler):
     def on_created(self, event: FileSystemEvent) -> None:
         if not event.is_directory and str(event.src_path).endswith(".md"):
             if not self._is_excluded(event.src_path):
+                log.info("file-create %s", event.src_path)
                 self._cb(str(event.src_path), "created")
 
     def on_modified(self, event: FileSystemEvent) -> None:
         if not event.is_directory and str(event.src_path).endswith(".md"):
             if not self._is_excluded(event.src_path):
+                log.info("file-change %s", event.src_path)
                 self._cb(str(event.src_path), "modified")
+
+    def on_deleted(self, event: FileSystemEvent) -> None:
+        if not event.is_directory and str(event.src_path).endswith(".md"):
+            if not self._is_excluded(event.src_path):
+                log.info("file-delete %s", event.src_path)
 
 
 class VaultWatcher:

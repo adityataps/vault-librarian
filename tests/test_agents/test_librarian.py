@@ -54,7 +54,7 @@ def test_librarian_supervised_proposes(mock_llm, tmp_path):
     from src.config import AppConfig
     from src.vault.tools import VaultTools
 
-    (tmp_path / ".librarian").mkdir()
+    (tmp_path / "Librarian").mkdir()
     (tmp_path / "standup.md").write_text("# Standup\n\nNotes.")
     cfg = AppConfig(
         llm_provider="copilot",

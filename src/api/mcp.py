@@ -146,7 +146,7 @@ def build_mcp_server_lazy() -> FastMCP:
     async def get_audit_report() -> str:
         """Return the content of the latest vault audit report."""
         db, runner, cfg, _ = _get_deps()
-        pattern = str(Path(cfg.vault_path) / ".librarian" / "Vault Audit — *.md")
+        pattern = str(Path(cfg.vault_path) / "Librarian" / "Vault Audit — *.md")
         reports = sorted(glob.glob(pattern), reverse=True)
         if not reports:
             return "No audit report found. Run `vault-librarian run auditor` to generate one."

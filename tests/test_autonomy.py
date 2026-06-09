@@ -15,7 +15,7 @@ def reset_singleton():
 
 @pytest.fixture
 def setup(tmp_path):
-    (tmp_path / ".librarian").mkdir()
+    (tmp_path / "Librarian").mkdir()
     cfg = AppConfig(
         llm_provider="copilot",
         llm_model="gpt-4o",
@@ -32,14 +32,14 @@ def test_propose_creates_inbox(setup):
     cfg, tools, tmp_path = setup
     inbox = LibrarianInbox(cfg, tools)
     inbox.propose("Move `orphan.md` → `Personal/`")
-    content = (tmp_path / ".librarian" / "Inbox.md").read_text()
+    content = (tmp_path / "Librarian" / "Inbox.md").read_text()
     assert "Move `orphan.md`" in content
     assert "- [ ]" in content
 
 
 def test_propose_appends_to_existing(setup):
     cfg, tools, tmp_path = setup
-    inbox_path = tmp_path / ".librarian" / "Inbox.md"
+    inbox_path = tmp_path / "Librarian" / "Inbox.md"
     inbox_path.write_text("# Librarian Inbox\n\n- [ ] Existing item\n")
     inbox = LibrarianInbox(cfg, tools)
     inbox.propose("New item")
@@ -52,7 +52,7 @@ def test_execute_checked_move(setup):
     cfg, tools, tmp_path = setup
     (tmp_path / "orphan.md").write_text("# Orphan")
     (tmp_path / "Personal").mkdir()
-    inbox_path = tmp_path / ".librarian" / "Inbox.md"
+    inbox_path = tmp_path / "Librarian" / "Inbox.md"
     inbox_path.write_text(
         "# Librarian Inbox\n\n- [x] Move `orphan.md` → `Personal/orphan.md`\n- [ ] Another item\n"
     )
@@ -67,7 +67,7 @@ def test_execute_checked_move(setup):
 
 def test_execute_checked_non_executable_item(setup):
     cfg, tools, tmp_path = setup
-    inbox_path = tmp_path / ".librarian" / "Inbox.md"
+    inbox_path = tmp_path / "Librarian" / "Inbox.md"
     inbox_path.write_text("# Librarian Inbox\n\n- [x] Review this note manually\n")
     inbox = LibrarianInbox(cfg, tools)
     executed = inbox.execute_checked()

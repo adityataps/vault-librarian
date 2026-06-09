@@ -69,5 +69,5 @@ async def run_weekly_review(
         f"---\nweek: {week_label}\ntype: weekly_review\n---\n"
         f"# Weekly Review — {week_label}\n\n{content}\n"
     )
-    tools.create_note(f".librarian/Weekly Review — {week_label}.md", note)
+    tools.create_note(f"Librarian/Weekly Review — {week_label}.md", note)
     log.info("Weekly Review written for %s", week_label)

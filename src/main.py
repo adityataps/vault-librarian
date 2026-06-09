@@ -23,7 +23,7 @@ def _setup_logging(level: str = "INFO") -> None:
         datefmt="[%X]",
         handlers=[RichHandler(rich_tracebacks=True, markup=True)],
     )
-    for noisy in ("httpx", "watchdog", "apscheduler", "chromadb"):
+    for noisy in ("httpx", "apscheduler", "chromadb"):
         logging.getLogger(noisy).setLevel(logging.WARNING)
 
 

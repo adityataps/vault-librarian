@@ -9,7 +9,7 @@ from src.vault.tools import VaultTools
 
 log = logging.getLogger(__name__)
 
-_INBOX_REL = ".librarian/Inbox.md"
+_INBOX_REL = "Librarian/Inbox.md"
 _CHECKED_RE = re.compile(r"^- \[x\] (.+)$", re.MULTILINE)
 _MOVE_RE = re.compile(r"Move `(.+?)` → `(.+?)`")
 

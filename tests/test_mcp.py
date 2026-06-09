@@ -14,7 +14,7 @@ def reset_singleton():
 def mcp_deps(tmp_path):
     from src.config import AppConfig
     from src.vault.tools import VaultTools
-    (tmp_path / ".librarian").mkdir()
+    (tmp_path / "Librarian").mkdir()
     (tmp_path / "Projects").mkdir()
     cfg = AppConfig(
         llm_provider="copilot", llm_model="gpt-4o", llm_api_key="x",

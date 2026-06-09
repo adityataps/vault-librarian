@@ -8,7 +8,7 @@ from src.vault.tools import VaultTools
 
 log = logging.getLogger(__name__)
 
-_ACTIVITY_REL = ".librarian/Activity.md"
+_ACTIVITY_REL = "Librarian/Activity.md"
 _HEADER = "# Librarian Activity\n\n"
 
 _CALLOUT: dict[str, str] = {

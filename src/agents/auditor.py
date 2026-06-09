@@ -82,7 +82,7 @@ async def run_auditor_full(
             for lnk in links:
                 if not _find_file(lnk, tools):
                     _broken.setdefault(lnk, []).append(meta.path)
-            if not links and meta.folder not in ("Templates", ".librarian", "Reference"):
+            if not links and meta.folder not in ("Templates", "Librarian", "Reference"):
                 _orphans.append(meta.path)
             mtime = datetime.fromtimestamp(Path(meta.abs_path).stat().st_mtime, tz=timezone.utc)
             if mtime < stale_cutoff:
@@ -142,6 +142,6 @@ async def run_auditor_full(
             report_lines.append(f"- [ ] {item}")
 
     report = "\n".join(report_lines) + "\n"
-    report_rel = f".librarian/Vault Audit — {today}.md"
+    report_rel = f"Librarian/Vault Audit — {today}.md"
     tools.create_note(report_rel, report)
     log.info("Auditor full sweep complete → %s", report_rel)

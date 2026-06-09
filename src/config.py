@@ -47,7 +47,7 @@ class AppConfig(BaseSettings):
     # Vault
     vault_path: str = ""
     vault_excluded_folders: list[str] = Field(
-        default_factory=lambda: [".obsidian", ".git", ".librarian", "Attachments"]
+        default_factory=lambda: [".obsidian", ".git", ".librarian", "Librarian", "Attachments"]
     )
     vault_excluded_files: list[str] = Field(default_factory=lambda: ["CLAUDE.md"])
 
@@ -108,7 +108,7 @@ class AppConfig(BaseSettings):
             )
         return v
 
-    # Private: natural-language instructions from .librarian/config.md
+    # Private: natural-language instructions from Librarian/config.md
     _agent_instructions: dict[str, str] = PrivateAttr(default_factory=dict)
 
     @classmethod

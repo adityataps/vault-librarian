@@ -65,7 +65,7 @@ def test_enricher_supervised_proposes(mock_llm, tmp_path):
     from src.config import AppConfig
     from src.vault.tools import VaultTools
 
-    (tmp_path / ".librarian").mkdir()
+    (tmp_path / "Librarian").mkdir()
     (tmp_path / "Projects").mkdir()
     (tmp_path / "Projects" / "Agent Platform.md").write_text("# Agent Platform\n")
     cfg = AppConfig(

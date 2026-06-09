@@ -64,5 +64,5 @@ async def run_daily_brief(
         content = f"_LLM unavailable — raw data:_\n\n{context}"
 
     note = f"---\ndate: {today}\ntype: daily_brief\n---\n# Daily Brief — {today}\n\n{content}\n"
-    tools.create_note(f".librarian/Daily Brief — {today}.md", note)
+    tools.create_note(f"Librarian/Daily Brief — {today}.md", note)
     log.info("Daily Brief written for %s", today)

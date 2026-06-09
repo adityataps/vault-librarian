@@ -128,7 +128,7 @@ from src.vault.scanner import VaultScanner
 def _make_cfg(vault_path: str) -> MagicMock:
     cfg = MagicMock()
     cfg.vault_path = vault_path
-    cfg.vault_excluded_folders = [".obsidian", ".git", ".librarian", "Attachments"]
+    cfg.vault_excluded_folders = [".obsidian", ".git", ".librarian", "Librarian", "Attachments"]
     cfg.vault_excluded_files = ["CLAUDE.md"]
     return cfg
 

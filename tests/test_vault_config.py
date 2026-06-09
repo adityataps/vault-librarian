@@ -14,7 +14,7 @@ def reset_singleton():
 
 @pytest.fixture
 def cfg_with_vault(tmp_path):
-    (tmp_path / ".librarian").mkdir()
+    (tmp_path / "Librarian").mkdir()
     return AppConfig(
         llm_provider="copilot",
         llm_model="gpt-4o",
@@ -27,7 +27,7 @@ def cfg_with_vault(tmp_path):
 
 def test_loader_reads_frontmatter_settings(cfg_with_vault):
     cfg, vault = cfg_with_vault
-    config_file = vault / ".librarian" / "config.md"
+    config_file = vault / "Librarian" / "config.md"
     config_file.write_text(
         "---\nautonomy_default: full\nstale_days: 45\n---\n\n## Formatter\n\nAlways add company tag.\n"
     )
@@ -39,7 +39,7 @@ def test_loader_reads_frontmatter_settings(cfg_with_vault):
 
 def test_loader_reads_agent_instructions(cfg_with_vault):
     cfg, vault = cfg_with_vault
-    config_file = vault / ".librarian" / "config.md"
+    config_file = vault / "Librarian" / "config.md"
     config_file.write_text(
         "---\n---\n\n## Librarian\n\nPrefer Tech Notes/ for homelab content.\n\n"
         "## Formatter\n\nNormalize all dates to ISO 8601.\n"
@@ -58,7 +58,7 @@ def test_loader_handles_missing_file_gracefully(cfg_with_vault):
 
 def test_loader_applies_agents_block(cfg_with_vault):
     cfg, vault = cfg_with_vault
-    config_file = vault / ".librarian" / "config.md"
+    config_file = vault / "Librarian" / "config.md"
     config_file.write_text(
         "---\nagents:\n  autonomy: full\n  overrides:\n    linker: supervised\n---\n\n"
     )
@@ -70,7 +70,7 @@ def test_loader_applies_agents_block(cfg_with_vault):
 
 def test_loader_section_names_lowercased(cfg_with_vault):
     cfg, vault = cfg_with_vault
-    config_file = vault / ".librarian" / "config.md"
+    config_file = vault / "Librarian" / "config.md"
     config_file.write_text("---\n---\n\n## MOC Maintainer\n\nAlways update the Work MOC.\n")
     loader = VaultConfigLoader(cfg)
     loader.apply()

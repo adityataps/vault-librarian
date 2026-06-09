@@ -23,7 +23,7 @@ def test_auditor_quick_no_broken_links(tmp_path):
 def test_auditor_quick_detects_broken_link_supervised(tmp_path):
     from src.config import AppConfig
     from src.vault.tools import VaultTools
-    (tmp_path / ".librarian").mkdir()
+    (tmp_path / "Librarian").mkdir()
     content = "# Note\n\nSee [[MissingNote]] for context."
     cfg = AppConfig(
         llm_provider="copilot", llm_model="gpt-4o", llm_api_key="x",

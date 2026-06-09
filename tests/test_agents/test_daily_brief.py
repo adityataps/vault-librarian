@@ -13,7 +13,7 @@ def reset_singleton():
 @pytest.fixture
 def setup(tmp_path):
     from src.config import AppConfig
-    (tmp_path / ".librarian").mkdir()
+    (tmp_path / "Librarian").mkdir()
     cfg = AppConfig(
         llm_provider="copilot", llm_model="gpt-4o", llm_api_key="x",
         vault_path=str(tmp_path), secret="s", _env_file=None,
@@ -42,7 +42,7 @@ async def test_daily_brief_creates_note(setup, monkeypatch):
 
     from datetime import date
     today = date.today().isoformat()
-    brief = tmp_path / ".librarian" / f"Daily Brief — {today}.md"
+    brief = tmp_path / "Librarian" / f"Daily Brief — {today}.md"
     assert brief.exists()
     assert today in brief.read_text()
 
@@ -66,7 +66,7 @@ async def test_daily_brief_fallback_on_llm_failure(setup, monkeypatch):
     await run_daily_brief(cfg, db, tools, llm)  # must not raise
 
     from datetime import date
-    brief = tmp_path / ".librarian" / f"Daily Brief — {date.today().isoformat()}.md"
+    brief = tmp_path / "Librarian" / f"Daily Brief — {date.today().isoformat()}.md"
     assert brief.exists()
 
 
@@ -92,6 +92,6 @@ async def test_weekly_review_creates_note(setup, monkeypatch):
     today = date.today()
     iso_year, iso_week, _ = today.isocalendar()
     week = f"{iso_year}-W{iso_week:02d}"
-    note = tmp_path / ".librarian" / f"Weekly Review — {week}.md"
+    note = tmp_path / "Librarian" / f"Weekly Review — {week}.md"
     assert note.exists()
     assert week in note.read_text()

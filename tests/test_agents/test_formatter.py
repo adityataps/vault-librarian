@@ -110,7 +110,7 @@ def test_formatter_supervised_proposes(mock_llm_with_fix, tmp_path):
     from src.config import AppConfig
     from src.vault.tools import VaultTools
 
-    (tmp_path / ".librarian").mkdir()
+    (tmp_path / "Librarian").mkdir()
     note = tmp_path / "note.md"
     note.write_text("---\ntags: []\n---\n# Note")
     cfg = AppConfig(

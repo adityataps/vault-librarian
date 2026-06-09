@@ -10,7 +10,7 @@ from src.config import AppConfig
 
 log = logging.getLogger(__name__)
 
-_CONFIG_REL = ".librarian/config.md"
+_CONFIG_REL = "Librarian/config.md"
 _SECTION_RE = re.compile(r"^##\s+(.+?)\s*$", re.MULTILINE)
 
 

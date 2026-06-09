@@ -59,7 +59,7 @@ The embedding provider is independent of the LLM provider. Use `local` when you 
 
 | Variable | Required | Default | Description |
 |---|---|---|---|
-| `LIBRARIAN_VAULT_EXCLUDED_FOLDERS` | | `.obsidian,.git,.librarian,Attachments` | Comma-separated folder names to skip |
+| `LIBRARIAN_VAULT_EXCLUDED_FOLDERS` | | `.obsidian,.git,.librarian,Librarian,Attachments` | Comma-separated folder names to skip |
 | `LIBRARIAN_VAULT_EXCLUDED_FILES` | | `CLAUDE.md` | Comma-separated filenames to skip |
 | `LIBRARIAN_STALE_DAYS` | | `60` | Days before a note is considered stale |
 

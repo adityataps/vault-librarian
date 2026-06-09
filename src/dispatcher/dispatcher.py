@@ -11,7 +11,7 @@ from src.vault.tools import VaultTools
 
 log = logging.getLogger(__name__)
 
-_CONFIG_REL = ".librarian/config.md"
+_CONFIG_REL = "Librarian/config.md"
 
 
 class Dispatcher:

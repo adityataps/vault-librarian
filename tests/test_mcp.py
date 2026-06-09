@@ -87,3 +87,26 @@ async def test_get_audit_report_no_report(mcp_deps):
     finally:
         _app._db = None
         _app._runner = None
+
+
+@pytest.mark.asyncio
+async def test_tools_return_not_ready_when_runner_is_none(mcp_deps):
+    """All tools that need live state return a 'not ready' string when runner is None."""
+    from src.api.mcp import build_mcp_server_lazy
+    import src.api.app as _app
+    cfg, db, tools, vector_store, tmp_path = mcp_deps
+    _app._db = None
+    _app._runner = None
+    try:
+        server = build_mcp_server_lazy()
+        for tool_name, args in [
+            ("run_agent", {"agent": "librarian", "note_path": "test.md"}),
+            ("search_vault", {"query": "test"}),
+            ("scaffold_note", {"title": "Test", "note_type": "project"}),
+        ]:
+            result, _ = await server.call_tool(tool_name, args)
+            assert "not ready" in str(result).lower() or "Service" in str(result), \
+                f"{tool_name} should return service-not-ready, got: {result}"
+    finally:
+        _app._db = None
+        _app._runner = None

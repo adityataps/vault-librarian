@@ -13,7 +13,7 @@ def _get_deps():
     """Late-import live state from the FastAPI lifespan module-level refs."""
     import src.api.app as _app
     from src.config import get_config
-    return _app._db, _app._runner, get_config()
+    return _app._db, _app._runner, get_config(), getattr(_app._runner, "_vector_store", None)
 
 
 def build_mcp_server_lazy() -> FastMCP:
@@ -26,7 +26,9 @@ def build_mcp_server_lazy() -> FastMCP:
         from src.agents.scaffolder import run_scaffolder
         from src.llm.factory import build_llm
         from src.vault.tools import VaultTools
-        db, runner, cfg = _get_deps()
+        db, runner, cfg, _ = _get_deps()
+        if runner is None:
+            return "Service not ready — start vault-librarian serve first"
         llm = build_llm(cfg)
         tools = VaultTools(cfg.vault_path)
         rel = run_scaffolder(title, note_type, context, llm, tools, cfg)
@@ -35,7 +37,7 @@ def build_mcp_server_lazy() -> FastMCP:
     @mcp.tool()
     async def run_agent(agent: str, note_path: str) -> str:
         """Manually trigger a specific agent on a vault note."""
-        db, runner, cfg = _get_deps()
+        db, runner, cfg, _ = _get_deps()
         if runner is None:
             return "Service not ready — start vault-librarian serve first"
         await runner.run(note_path)
@@ -44,10 +46,10 @@ def build_mcp_server_lazy() -> FastMCP:
     @mcp.tool()
     async def search_vault(query: str, k: int = 5) -> str:
         """Semantic search across all vault notes. Returns ranked note paths."""
-        db, runner, cfg = _get_deps()
-        if runner is None:
+        db, runner, cfg, vector_store = _get_deps()
+        if runner is None or vector_store is None:
             return "Service not ready"
-        results = runner._vector_store.search_similar(query, k=k)
+        results = vector_store.search_similar(query, k=k)
         if not results:
             return "No results found."
         return "\n".join(f"- {r}" for r in results)
@@ -57,7 +59,9 @@ def build_mcp_server_lazy() -> FastMCP:
         """Get frontmatter and agent run history for a vault note."""
         from src.storage.repository import AgentRunRepo
         from src.vault.parser import parse_note
-        db, runner, cfg = _get_deps()
+        db, runner, cfg, _ = _get_deps()
+        if runner is None:
+            return "Service not ready"
         abs_path = str(Path(cfg.vault_path) / path)
         try:
             meta = parse_note(abs_path, cfg.vault_path)
@@ -79,7 +83,9 @@ def build_mcp_server_lazy() -> FastMCP:
     async def list_notes(folder: str = "") -> str:
         """List notes in the vault with optional folder filter (max 50)."""
         from src.storage.repository import NoteRepo
-        db, runner, cfg = _get_deps()
+        db, runner, cfg, _ = _get_deps()
+        if runner is None:
+            return "Service not ready"
         hash_by_path = await NoteRepo(db).all_hashes()
         paths = sorted(hash_by_path.keys())
         if folder:
@@ -87,10 +93,12 @@ def build_mcp_server_lazy() -> FastMCP:
         return "\n".join(f"- {p}" for p in paths[:50]) if paths else "No notes found."
 
     @mcp.tool()
-    async def get_action_items(resolved: bool = False) -> str:
-        """Get outstanding action items extracted from vault notes."""
+    async def get_action_items() -> str:
+        """Get outstanding unresolved action items extracted from vault notes."""
         from src.storage.repository import ActionItemRepo
-        db, runner, cfg = _get_deps()
+        db, runner, cfg, _ = _get_deps()
+        if runner is None:
+            return "Service not ready"
         items = await ActionItemRepo(db).unresolved()
         if not items:
             return "No unresolved action items."
@@ -99,7 +107,7 @@ def build_mcp_server_lazy() -> FastMCP:
     @mcp.tool()
     async def get_audit_report() -> str:
         """Return the content of the latest vault audit report."""
-        db, runner, cfg = _get_deps()
+        db, runner, cfg, _ = _get_deps()
         pattern = str(Path(cfg.vault_path) / ".librarian" / "Vault Audit — *.md")
         reports = sorted(glob.glob(pattern), reverse=True)
         if not reports:

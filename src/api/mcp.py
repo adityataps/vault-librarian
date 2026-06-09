@@ -21,8 +21,9 @@ class _SecretAuthMiddleware(BaseHTTPMiddleware):
         self._get_secret = secret_getter
 
     async def dispatch(self, request: Request, call_next) -> Response:
+        import hmac
         provided = request.headers.get("x-librarian-secret", "")
-        if provided != self._get_secret():
+        if not hmac.compare_digest(provided, self._get_secret()):
             return Response("Unauthorized", status_code=401)
         return await call_next(request)
 

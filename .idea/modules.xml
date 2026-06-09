@@ -3,7 +3,7 @@
   <component name="ProjectModuleManager">
     <modules>
       <module fileurl="file://$PROJECT_DIR$/.idea/vault-crawler.iml" filepath="$PROJECT_DIR$/.idea/vault-crawler.iml" />
-      <module fileurl="file://$PROJECT_DIR$/.idea/vault-crawler@1.iml" filepath="$PROJECT_DIR$/.idea/vault-crawler@1.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/vault-librarian.iml" filepath="$PROJECT_DIR$/.idea/vault-librarian.iml" />
     </modules>
   </component>
 </project>

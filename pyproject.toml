@@ -1,46 +1,45 @@
 [project]
-name = "vault-crawler"
+name = "vault-librarian"
 version = "0.1.0"
-description = "Multi-agent Obsidian vault management service powered by CrewAI"
-readme = "README.md"
+description = "Autonomous multi-agent Obsidian vault librarian"
 requires-python = ">=3.11"
 dependencies = [
-    "crewai>=0.90.0",
-    "crewai-tools>=0.20.0",
+    "langgraph>=0.2.0",
+    "langchain-core>=0.3.0",
+    "langchain-openai>=0.2.0",
+    "langchain-anthropic>=0.3.0",
+    "langchain-community>=0.3.0",
+    "langchain-chroma>=0.1.4",
+    "chromadb>=0.5.0",
+    "sentence-transformers>=3.0.0",
     "fastapi>=0.115.0",
     "uvicorn[standard]>=0.32.0",
-    "sqlalchemy[asyncio]>=2.0.35",
-    "asyncpg>=0.30.0",
+    "sqlalchemy>=2.0.35",
     "aiosqlite>=0.20.0",
     "alembic>=1.14.0",
-    "pgvector>=0.3.5",
-    "redis>=5.2.0",
     "watchdog>=6.0.0",
     "apscheduler>=3.10.4",
-    "openai>=1.55.0",
-    "anthropic>=0.39.0",
     "python-frontmatter>=1.1.0",
     "pydantic>=2.10.0",
     "pydantic-settings>=2.6.0",
-    "pyyaml>=6.0.2",
     "python-dotenv>=1.0.1",
-    "httpx>=0.28.0",
+    "gitpython>=3.1.0",
     "typer>=0.15.0",
     "rich>=13.9.0",
-    "psycopg2-binary>=2.9.12",
+    "mcp>=1.0.0",
 ]
 
 [project.optional-dependencies]
 dev = [
     "pytest>=8.3.0",
     "pytest-asyncio>=0.24.0",
-    "pytest-cov>=6.0.0",
+    "pytest-mock>=3.14.0",
     "ruff>=0.8.0",
     "mypy>=1.13.0",
 ]
 
 [project.scripts]
-vault-crawler = "src.main:app"
+vault-librarian = "src.main:app"
 
 [build-system]
 requires = ["hatchling"]
@@ -56,12 +55,6 @@ target-version = "py311"
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "W"]
 ignore = ["E501"]
-
-[tool.mypy]
-python_version = "3.11"
-warn_return_any = true
-warn_unused_configs = true
-disallow_untyped_defs = true
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

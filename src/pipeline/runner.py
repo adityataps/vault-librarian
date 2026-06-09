@@ -6,6 +6,7 @@ from pathlib import Path
 
 from src.agents.state import make_state
 from src.audit.activity import ActivityLog
+from src.audit.terminal import get_feed
 from src.config import AppConfig
 from src.storage.db import Database
 from src.storage.models import AgentRunRecord, NoteRecord
@@ -122,6 +123,7 @@ class PipelineRunner:
                 else "executed"
             )
             self._activity.append(f"pipeline({rel})", changes, outcome)
+            get_feed().feed(f"pipeline({rel})", changes, outcome)
 
     def _pipeline_agents(self) -> list[str]:
         from src.pipeline.builder import PIPELINE_ORDER

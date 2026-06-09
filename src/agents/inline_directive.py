@@ -64,8 +64,7 @@ def inline_directive_node(
             log.warning("Inline directive LLM failed: %s", exc)
             continue
 
-        comment = f"<!-- agent-{d.tag}: {d.prompt[:80]} -->\n" if d.prompt else ""
-        replacement = comment + generated
+        replacement = generated
         start = d.start + offset
         end = d.end + offset
         content = content[:start] + replacement + content[end:]
@@ -73,15 +72,10 @@ def inline_directive_node(
         changes.append(f"Inline directive ({d.tag}) resolved")
 
     if changes:
-        from src.autonomy.inbox import LibrarianInbox
-
-        if cfg.get_autonomy("inline_directive") == "full":
-            tools.write_note(
-                state["note_path"], content, dispatch_hash=state.get("dispatch_hash") or None
-            )
-        else:
-            LibrarianInbox(cfg, tools).propose(
-                f"Resolve {len(changes)} inline directive(s) in `{state['note_path']}`"
-            )
+        # Always write back — the directive tags must be consumed so they
+        # don't re-trigger on the next file save.
+        tools.write_note(
+            state["note_path"], content, dispatch_hash=state.get("dispatch_hash") or None
+        )
 
     return {"directives": directives, "changes": changes}

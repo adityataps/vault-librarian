@@ -30,8 +30,9 @@ class ActivityLog:
             return
 
         callout = _CALLOUT.get(outcome, "info")
+        timestamp = datetime.now().strftime("%H:%M:%S")
         body = "\n".join(f"> {c}" for c in changes)
-        block = f"\n> [!{callout}] {agent}\n{body}\n"
+        block = f"\n> [!{callout}] {agent} — {timestamp}\n{body}\n"
 
         try:
             existing = self._tools.read_note(_ACTIVITY_REL)

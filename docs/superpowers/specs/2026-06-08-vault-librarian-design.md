@@ -28,7 +28,7 @@ Triggers (file events · cron · webhooks · git hooks · CLI)
 **Services in one process:**
 - FastAPI — REST + webhook endpoints + MCP server
 - Watchdog — file system events → event queue
-- APScheduler — cron jobs (Daily Brief, Weekly Review, Auditor, STAR Miner)
+- APScheduler — cron jobs (Daily Brief, Weekly Review, Auditor)
 - LangGraph agent pipelines — triggered by dispatcher or scheduler
 
 **No Docker required for local dev.** SQLite and ChromaDB are file-backed. Optional Postgres upgrade path for production via config.
@@ -48,6 +48,36 @@ Triggers (file events · cron · webhooks · git hooks · CLI)
 ### Debounce logic
 
 On the first file event, the dispatcher does a cheap regex peek for `<agent-` in the file. If found, the debounce timer is 0.5s. Otherwise 3s. Each subsequent event for the same path resets the active timer. On expiry, the dispatcher acquires the per-file lock and dispatches the pipeline.
+
+### Agent enrollment
+
+Which agents are active is configured at startup — not hardcoded. Priority order: CLI flag > env var > config file.
+
+```yaml
+# config.yaml
+agents:
+  enabled:
+    - librarian
+    - formatter
+    - linker
+    - meeting_enricher
+    - moc_maintainer
+    - inline_directive
+    - auditor
+    - daily_brief
+    - weekly_review
+    - scaffolder
+```
+
+```bash
+# env var (comma-separated, overrides config.yaml)
+LIBRARIAN_AGENTS=librarian,formatter,auditor
+
+# CLI flag (overrides both, per-invocation)
+vault-librarian serve --agents librarian,formatter,auditor
+```
+
+Unenrolled agents are never instantiated and never appear in the expected-agents map for reconciliation. This lets you run a lightweight mode (e.g. just `librarian,formatter`) during development or on low-powered hardware.
 
 ### Startup reconciliation
 
@@ -74,8 +104,7 @@ On every startup the service scans all vault files and compares current content 
 |---|---|---|
 | **Daily Brief** | Nightly (configurable) | Synthesizes `Daily Brief — YYYY-MM-DD.md`: open Jira tickets, recent meetings, unresolved action items from last 7 days, vault health score. |
 | **Weekly Review** | Sunday evening | Synthesizes `Weekly Review — YYYY-WNN.md`: closed tickets, meetings attended, key decisions logged, action items resolved, notable learnings. |
-| **Auditor** | Nightly + on-demand | Full-vault sweep: broken links, orphaned notes, stale notes (90+ days), misclassified types, duplicate folder detection (`Folder 2`/`Folder 3` patterns). Creates stubs for broken wiki-links. Writes `Vault Audit — YYYY-MM-DD.md`. |
-| **STAR Story Miner** | Weekly | Scans Project and Career notes for notable events (decisions, problems, outcomes). Suggests or drafts STAR story entries into relevant project notes. |
+| **Auditor** | Nightly + on-demand | Full-vault sweep: broken links, orphaned notes, stale notes (90+ days), misclassified types, duplicate folder detection (`Folder 2`/`Folder 3` patterns), unprocessed `<agent-*>` tags. Creates stubs for broken wiki-links. Writes `Vault Audit — YYYY-MM-DD.md` with an actionable TODO list (see Section 5). |
 
 ### On-demand agents
 
@@ -138,7 +167,41 @@ Conditional edges handle routing — e.g. Meeting Enricher node only activates i
 
 ---
 
-## 5. Inline Directives
+## 5. Auditor TODO Loop & Conflict Resolution
+
+### Actionable TODO list
+
+The Auditor writes `Vault Audit — YYYY-MM-DD.md` with a `## 🔧 Actionable Items` section using Tasks plugin syntax:
+
+```markdown
+## 🔧 Actionable Items
+<!-- Check items you want the librarian to execute, then save the file -->
+
+- [ ] Move "Sri's Bach Party Gameplan.md" → Personal/
+- [ ] Create stub for [[CSharp]] in Tech Notes/
+- [ ] Merge "Desk Check 2026-04-30 2" into "Desk Check 2026-04-30"
+- [ ] Delete duplicate folder "docs/superpowers 2"
+```
+
+When you check an item and save, the file watcher fires with a 0.5s debounce (audit reports are treated as directive-containing files). The Auditor execution pass reads all `- [x]` items, executes each action, then replaces the checkbox with `✅ Executed — YYYY-MM-DD`. Unchecked items carry forward to the next audit report unchanged.
+
+This gives human-in-the-loop control for destructive operations (moves, merges, deletes) without requiring a UI.
+
+### File conflict resolution
+
+**Agent vs. agent** — prevented by the per-file `asyncio.Lock`. Only one agent pipeline runs on a given file at a time.
+
+**Agent vs. human** — handled via optimistic concurrency:
+1. At dispatch time, the dispatcher records the file's current content hash.
+2. Before any agent writes, `write_note` re-reads the hash from disk.
+3. If the hash changed (human edited while the agent was processing), the write is aborted and the note is re-queued. The file watcher will pick up the human's version naturally on next settle.
+4. No data is ever lost — worst case the agent re-runs on the updated content.
+
+**Obsidian Sync conflicts** (mobile edits) surface as `filename.md.sync-conflict-...` files. The Auditor detects these by filename pattern and lists them in the actionable TODO section for manual resolution.
+
+---
+
+## 6. Inline Directives
 
 Embedding a directive tag in any note triggers the Inline Directive agent with a 0.5s debounce.
 
@@ -160,7 +223,7 @@ Unprocessed tags act as a natural TODO queue visible in the Auditor report.
 
 ---
 
-## 6. Storage
+## 7. Storage
 
 ### SQLite schema
 
@@ -207,6 +270,8 @@ audit_log(
 
 Embedded, file-backed collection at `.librarian/chroma/` inside the vault. One document per note, embedding updated on content hash change. Used by Linker and `<agent-context>` directives.
 
+LanceDB is a viable drop-in replacement (Rust-backed, faster at scale, same embedded model) and is noted as a future upgrade path. ChromaDB is chosen for v1 due to more LangChain usage examples. The storage interface will be wrapped so swapping is a config change, not a code change.
+
 ### Resilience mechanisms
 
 1. **Startup reconciliation scan** — on startup, compare all vault file hashes against `agent_runs`. Queue any note missing a completed run for any expected agent.
@@ -215,7 +280,7 @@ Embedded, file-backed collection at `.librarian/chroma/` inside the vault. One d
 
 ---
 
-## 7. LLM Provider Abstraction
+## 8. LLM Provider Abstraction
 
 ```python
 def build_llm(config: LLMConfig) -> BaseChatModel:
@@ -236,7 +301,7 @@ All agents receive `llm: BaseChatModel` via dependency injection. Switching prov
 
 ---
 
-## 8. HTTP + MCP API
+## 9. HTTP + MCP API
 
 ### Webhook / REST endpoints (FastAPI)
 
@@ -277,7 +342,7 @@ Jira webhook → n8n → POST /webhook/jira {ticket_id, status}
 
 ---
 
-## 9. Obsidian Plugin Compatibility
+## 10. Obsidian Plugin Compatibility
 
 | Plugin | Compatibility note |
 |---|---|
@@ -289,7 +354,7 @@ Jira webhook → n8n → POST /webhook/jira {ticket_id, status}
 
 ---
 
-## 10. CLI
+## 11. CLI
 
 ```
 vault-librarian serve              Start API server + scheduler + file watcher
@@ -303,7 +368,7 @@ vault-librarian migrate            Run database migrations
 
 ---
 
-## 11. Technology Stack
+## 12. Technology Stack
 
 | Layer | Technology |
 |---|---|
@@ -320,10 +385,15 @@ vault-librarian migrate            Run database migrations
 
 ---
 
-## 12. Out of Scope (v1)
+## 13. Out of Scope (v1)
 
 - Chat / conversational query interface (handled by Claude Code + Copilot CLI via MCP)
-- Web UI or dashboard
 - Multi-vault support
 - Real-time collaboration / conflict resolution between users
 - Cloud hosting / containerisation (runs locally or on homelab)
+
+## 14. Future Consideration
+
+- Web UI dashboard — status view, agent run history, vault health score, actionable item management
+- LanceDB as a drop-in ChromaDB replacement (better performance at scale, same embedded model)
+- STAR story miner — scan Project and Career notes for STAR story candidates (interview/perf review prep)

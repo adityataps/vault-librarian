@@ -9,8 +9,7 @@ dependencies = [
     "langchain-openai>=0.2.0",
     "langchain-anthropic>=0.3.0",
     "langchain-community>=0.3.0",
-    "langchain-chroma>=0.1.4",
-    "chromadb>=0.5.0",
+    "lancedb>=0.6.0",
     "sentence-transformers>=3.0.0",
     "fastapi>=0.115.0",
     "uvicorn[standard]>=0.32.0",
@@ -42,14 +41,14 @@ dev = [
 ]
 
 [project.scripts]
-vault-librarian = "src.main:app"
+vault-librarian = "vault_librarian.main:app"
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src"]
+packages = ["src", "vault_librarian"]
 
 [tool.ruff]
 line-length = 100
@@ -66,4 +65,7 @@ testpaths = ["tests"]
 [dependency-groups]
 dev = [
     "httpx>=0.28.1",
+    "pytest>=9.0.3",
+    "pytest-asyncio>=1.4.0",
+    "pytest-mock>=3.15.1",
 ]

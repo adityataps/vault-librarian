@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import threading
+import typing
+import warnings
 from typing import Any
 
-from pydantic import PrivateAttr, field_validator
+from pydantic import Field, PrivateAttr, field_validator
 from pydantic_settings import BaseSettings, EnvSettingsSource, SettingsConfigDict
 
 
@@ -10,11 +13,10 @@ class _CommaSupportedEnvSource(EnvSettingsSource):
     """Env source that allows comma-separated values for list[str] fields."""
 
     def decode_complex_value(self, field_name: str, field: Any, value: Any) -> Any:
-        # If value is a plain comma-separated string (not JSON), return it as-is
-        # so that the field_validator can split it.
-        if isinstance(value, str):
+        origin = typing.get_origin(field.annotation)
+        if origin is list and isinstance(value, str):
             stripped = value.strip()
-            if not (stripped.startswith("[") or stripped.startswith("{")):
+            if not stripped.startswith("["):
                 return stripped  # hand off to field_validator
         return super().decode_complex_value(field_name, field, value)
 
@@ -29,8 +31,10 @@ class AppConfig(BaseSettings):
 
     # Vault
     vault_path: str = ""
-    vault_excluded_folders: list[str] = [".obsidian", ".git", ".librarian", "Attachments"]
-    vault_excluded_files: list[str] = ["CLAUDE.md"]
+    vault_excluded_folders: list[str] = Field(
+        default_factory=lambda: [".obsidian", ".git", ".librarian", "Attachments"]
+    )
+    vault_excluded_files: list[str] = Field(default_factory=lambda: ["CLAUDE.md"])
 
     # Service
     secret: str = "change-me"
@@ -39,26 +43,30 @@ class AppConfig(BaseSettings):
     debounce_directive: float = 0.5
 
     # Agent enrollment
-    enrolled_agents: list[str] = [
-        "librarian",
-        "formatter",
-        "meeting_enricher",
-        "linker",
-        "moc_maintainer",
-        "inline_directive",
-        "scaffolder",
-        "auditor",
-        "daily_brief",
-        "weekly_review",
-    ]
+    enrolled_agents: list[str] = Field(
+        default_factory=lambda: [
+            "librarian",
+            "formatter",
+            "meeting_enricher",
+            "linker",
+            "moc_maintainer",
+            "inline_directive",
+            "scaffolder",
+            "auditor",
+            "daily_brief",
+            "weekly_review",
+        ]
+    )
 
     # Autonomy
     autonomy_default: str = "supervised"
-    autonomy_overrides: dict[str, str] = {
-        "formatter": "full",
-        "inline_directive": "full",
-        "meeting_enricher": "full",
-    }
+    autonomy_overrides: dict[str, str] = Field(
+        default_factory=lambda: {
+            "formatter": "full",
+            "inline_directive": "full",
+            "meeting_enricher": "full",
+        }
+    )
 
     # Schedules
     auditor_schedule: str = "0 2 * * *"
@@ -74,6 +82,16 @@ class AppConfig(BaseSettings):
         if isinstance(v, str):
             return [a.strip() for a in v.split(",") if a.strip()]
         return v  # type: ignore[return-value]
+
+    @field_validator("secret", mode="after")
+    @classmethod
+    def warn_insecure_secret(cls, v: str) -> str:
+        if v == "change-me":
+            warnings.warn(
+                "LIBRARIAN_SECRET is using the insecure default. Set a strong secret before deploying.",
+                stacklevel=2,
+            )
+        return v
 
     # Private: natural-language instructions from .librarian/config.md
     _agent_instructions: dict[str, str] = PrivateAttr(default_factory=dict)
@@ -102,10 +120,13 @@ class AppConfig(BaseSettings):
 
 
 _instance: AppConfig | None = None
+_lock = threading.Lock()
 
 
 def get_config() -> AppConfig:
     global _instance
     if _instance is None:
-        _instance = AppConfig()
+        with _lock:
+            if _instance is None:
+                _instance = AppConfig()
     return _instance

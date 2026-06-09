@@ -28,9 +28,12 @@ uv run vault-librarian serve
 
 | Variable | Required | Default | Description |
 |---|---|---|---|
-| `LIBRARIAN_LLM_PROVIDER` | | `copilot` | Default provider: `copilot`, `anthropic`, `ollama` |
-| `LIBRARIAN_LLM_MODEL` | | `gpt-4o` | Model ID for the chosen provider |
+| `LIBRARIAN_LLM_PROVIDER` | | `copilot` | Provider: `copilot`, `anthropic`, `ollama` |
+| `LIBRARIAN_LLM_MODEL` | | `gpt-4o-mini` | **Fast** model — used for real-time pipeline agents (on every file save) |
+| `LIBRARIAN_LLM_MODEL_HEAVY` | | *(falls back to `LLM_MODEL`)* | **Heavy** model — used for scheduled/async jobs (audits, briefs, consolidation, scaffolding) |
 | `LIBRARIAN_LLM_API_KEY` | | — | API key (GitHub token for Copilot, or Anthropic key) |
+
+> **Tip:** Use a cheap/fast model (e.g. `gpt-4o-mini`) for `LLM_MODEL` since it runs on every file save, and a more capable model (e.g. `gpt-4o`) for `LLM_MODEL_HEAVY` which only runs on scheduled jobs.
 
 ### Embeddings
 

@@ -57,7 +57,7 @@ def build_mcp_server_lazy() -> FastMCP:
         db, runner, cfg, _ = _get_deps()
         if runner is None:
             return "Service not ready — start vault-librarian serve first"
-        llm = build_llm(cfg)
+        llm = build_llm(cfg, tier="heavy")
         tools = VaultTools(cfg.vault_path)
         rel = run_scaffolder(title, note_type, context, llm, tools, cfg)
         return f"Created: {rel}"

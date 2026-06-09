@@ -37,7 +37,8 @@ async def _lifespan(app: FastAPI):
     _db = build_db(cfg)
     await _db.initialize()
 
-    llm = build_llm(cfg)
+    llm = build_llm(cfg)  # fast model for pipeline
+    llm_heavy = build_llm(cfg, tier="heavy")  # heavier model for scheduled jobs
     embedder = build_embedder(cfg)
     vector_store = VectorStore(cfg.vault_path, embedder)
     tools = VaultTools(cfg.vault_path)
@@ -45,7 +46,7 @@ async def _lifespan(app: FastAPI):
     _runner = PipelineRunner(cfg, _db, tools, llm, vector_store)
     _dispatcher = Dispatcher(cfg, _db, tools, _runner)
 
-    _scheduler = build_scheduler(cfg, _db, tools, llm)
+    _scheduler = build_scheduler(cfg, _db, tools, llm_heavy)
     _scheduler.start()
     log.info("Scheduler started with %d jobs", len(_scheduler.get_jobs()))
 
@@ -117,7 +118,7 @@ def create_app() -> FastAPI:
         from src.llm.factory import build_llm
         from src.vault.tools import VaultTools
 
-        llm = build_llm(cfg)
+        llm = build_llm(cfg, tier="heavy")
         tools = VaultTools(cfg.vault_path)
         rel = run_scaffolder(req.title, req.note_type, req.context, llm, tools, cfg)
         return {"created": rel}

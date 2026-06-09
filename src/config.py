@@ -38,7 +38,8 @@ class AppConfig(BaseSettings):
 
     # LLM
     llm_provider: str = "copilot"
-    llm_model: str = "gpt-4o"
+    llm_model: str = "gpt-4o-mini"  # fast model for real-time pipeline agents
+    llm_model_heavy: str = ""  # heavier model for scheduled/async jobs (defaults to llm_model)
     llm_api_key: str = ""
 
     # Embeddings: "openai" uses text-embedding-3-small via API, "local" uses HuggingFace all-MiniLM-L6-v2

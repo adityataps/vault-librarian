@@ -51,7 +51,7 @@ def build_pipeline(
         graph.add_node("noop", lambda s: {})
         graph.set_entry_point("noop")
         graph.add_edge("noop", END)
-        return graph.compile()
+        return graph.compile(), []
 
     for name in active:
         dotpath = _AGENT_REGISTRY[name]
@@ -71,4 +71,4 @@ def build_pipeline(
         graph.add_edge(active[i], active[i + 1])
     graph.add_edge(active[-1], END)
 
-    return graph.compile()
+    return graph.compile(), active

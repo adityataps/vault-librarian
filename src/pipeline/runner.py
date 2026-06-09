@@ -74,7 +74,7 @@ class PipelineRunner:
 
         from src.pipeline.builder import build_pipeline
 
-        pipeline = build_pipeline(meta.note_type, needed, context)
+        pipeline, ran_agents = build_pipeline(meta.note_type, needed, context)
         state = make_state(
             note_path=meta.path,
             note_content=meta.raw_content,
@@ -92,7 +92,9 @@ class PipelineRunner:
             log.exception("Pipeline error for %s: %s", rel, exc)
             return
 
-        for agent in needed:
+        # Only record agents that the pipeline actually included (build_pipeline may
+        # exclude e.g. meeting_enricher for non-meeting notes).
+        for agent in ran_agents:
             await run_repo.save(
                 AgentRunRecord(
                     note_path=rel,
@@ -106,7 +108,10 @@ class PipelineRunner:
             await audit_repo.write("pipeline", "change", change, rel)
 
         if changes:
-            self._tools.git_commit(f"[librarian] {rel}: {'; '.join(changes[:3])}")
+            await asyncio.to_thread(
+                self._tools.git_commit,
+                f"[librarian] {rel}: {'; '.join(changes[:3])}",
+            )
 
     def _pipeline_agents(self) -> list[str]:
         from src.pipeline.builder import PIPELINE_ORDER

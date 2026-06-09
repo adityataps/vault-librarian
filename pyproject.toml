@@ -27,6 +27,7 @@ dependencies = [
     "typer>=0.15.0",
     "rich>=13.9.0",
     "mcp>=1.0.0",
+    "greenlet>=3.5.1",
 ]
 
 [project.optional-dependencies]

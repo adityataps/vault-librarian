@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import delete, select
+from sqlalchemy.exc import IntegrityError
 
 from src.storage.db import Database
 from src.storage.models import ActionItemRecord, AgentRunRecord, AuditLogRecord, NoteRecord
@@ -41,7 +42,7 @@ class AgentRunRepo:
             s.add(run)
             try:
                 await s.commit()
-            except Exception:
+            except IntegrityError:
                 await s.rollback()
 
     async def exists(self, path: str, content_hash: str, agent: str) -> bool:
@@ -102,12 +103,8 @@ class AuditLogRepo:
         days = int(since.rstrip("d")) if since.endswith("d") else 7
         cutoff = datetime.now(timezone.utc) - timedelta(days=days)
         async with self._db.session() as s:
-            q = (
-                select(AuditLogRecord)
-                .where(AuditLogRecord.timestamp >= cutoff)
-                .order_by(AuditLogRecord.timestamp.desc())
-                .limit(limit)
-            )
+            q = select(AuditLogRecord).where(AuditLogRecord.timestamp >= cutoff)
             if agent:
                 q = q.where(AuditLogRecord.agent == agent)
+            q = q.order_by(AuditLogRecord.timestamp.desc()).limit(limit)
             return list((await s.execute(q)).scalars())

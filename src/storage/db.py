@@ -16,6 +16,7 @@ class Database:
         self._session_factory = None
 
     async def initialize(self) -> None:
+        Path(self.url.replace("sqlite+aiosqlite:///", "")).parent.mkdir(parents=True, exist_ok=True)
         self.engine = create_async_engine(self.url, echo=False)
         async with self.engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
@@ -36,6 +37,5 @@ class Database:
 
 def build_db(cfg: AppConfig) -> Database:
     librarian_dir = Path(cfg.vault_path) / ".librarian"
-    librarian_dir.mkdir(exist_ok=True)
     db_path = librarian_dir / "librarian.db"
     return Database(f"sqlite+aiosqlite:///{db_path}")

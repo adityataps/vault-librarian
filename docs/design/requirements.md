@@ -18,6 +18,10 @@ aware (deterministic-first, model tiering, throttled concurrency).
   - Frontmatter updates
   - Spellcheck
   - Mermaid diagram validation (+ fix cascade, see below)
+- Inline `<!-- agent-ignore -->...<!-- /agent-ignore -->` fences protecting
+  a specific region's content from all (or, via an optional `workflows=`
+  attribute, selected) reactive workflows — a finer-grained, portable
+  complement to the frontmatter opt-out.
 - Quiescence-based debounce (per-file timer, resets on new writes).
 - Vault-resident `Config.md`, hot-reloaded on save. Drives:
   - Per-workflow enable/disable
@@ -102,6 +106,7 @@ aware (deterministic-first, model tiering, throttled concurrency).
 | FR-24 | Batch all applicable reactive workflows for a settle-event into one read/transform/write/commit pipeline, not one cycle per workflow | 1 |
 | FR-25 | Skip all workflow processing on a file containing unresolved merge-conflict markers (`<<<<<<<`/`=======`/`>>>>>>>`) until the user resolves them | 1 |
 | FR-26 | Detect when a save reverts a file to a previously recorded pre-transform (`input_hash`) state for a workflow, and skip reapplying that workflow rather than fighting the user; log the detection and the frontmatter opt-out to make suppression permanent | 1 |
+| FR-27 | Support `<!-- agent-ignore -->...<!-- /agent-ignore -->` fences (optionally scoped via `workflows="..."`) as a shared segmentation pre-pass excluding protected spans from all text-mutating reactive workflows and the directive scanner | 1 |
 
 ## 4. Non-functional requirements
 
@@ -122,6 +127,7 @@ aware (deterministic-first, model tiering, throttled concurrency).
 | NFR-13 | All git repository mutations (workflow commits, scheduled backup push, CLI/MCP rollback) serialize through a single lock, independent of the workflow queue's own concurrency=1 |
 | NFR-14 | `Config.md` changes are parsed and fully validated before swapping the in-memory config; on validation failure the previous config remains active and the error is logged |
 | NFR-15 | All agent-originated tasks (reactive pipeline, directive execution, org-agent actions) share one global queue — there is no separate concurrent execution lane between agent types to reconcile |
+| NFR-16 | Reactive workflows must already treat existing markdown fenced/inline code spans as implicitly protected (never spellchecked/reformatted); `agent-ignore` fences extend the same guarantee to arbitrary prose |
 
 ## 5. Explicitly out of scope (for now)
 - Pushing librarian's safety-net commits to any remote.

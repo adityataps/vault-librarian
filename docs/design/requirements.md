@@ -39,6 +39,11 @@ aware (deterministic-first, model tiering, throttled concurrency).
 - LLM providers: `github_copilot/*` (LiteLLM, OAuth device flow),
   `anthropic/*` (API key), `ollama/*` (local).
 - `--dry-run` CLI mode.
+- No external DB servers required (LanceDB + SQLite are embedded/file-based);
+  runs as a single long-running process. Default deployment: native macOS
+  `launchd` user agent (systemd `--user` on Linux); optional
+  podman/podman-compose path documented for a remote vault or full
+  toolchain reproducibility.
 
 ### Phase 2 — Directives + Knowledge base
 - Inline agent directives: `<agent-research>`, `<agent-do>`,
@@ -109,6 +114,8 @@ aware (deterministic-first, model tiering, throttled concurrency).
 | FR-25 | Skip all workflow processing on a file containing unresolved merge-conflict markers (`<<<<<<<`/`=======`/`>>>>>>>`) until the user resolves them | 1 |
 | FR-26 | Detect when a save reverts a file to a previously recorded pre-transform (`input_hash`) state for a workflow, and skip reapplying that workflow rather than fighting the user; log the detection and the frontmatter opt-out to make suppression permanent | 1 |
 | FR-27 | Support `<!-- agent-ignore -->...<!-- /agent-ignore -->` fences (optionally scoped via `workflows="..."`) as a shared segmentation pre-pass excluding protected spans from all text-mutating reactive workflows and the directive scanner | 2 |
+| FR-28 | Check required prerequisites (Node.js + `mmdc`) at startup and fail with a clear, actionable error rather than an obscure failure on first mermaid block | 1 |
+| FR-29 | Provide a native background-service deployment path (macOS `launchd` user agent / Linux systemd `--user` unit) as the default, plus a documented podman/podman-compose alternative | 1 |
 
 ## 4. Non-functional requirements
 
@@ -130,6 +137,7 @@ aware (deterministic-first, model tiering, throttled concurrency).
 | NFR-14 | `Config.md` changes are parsed and fully validated before swapping the in-memory config; on validation failure the previous config remains active and the error is logged |
 | NFR-15 | All agent-originated tasks (reactive pipeline, directive execution, org-agent actions) share one global queue — there is no separate concurrent execution lane between agent types to reconcile |
 | NFR-16 | Reactive workflows must already treat existing markdown fenced/inline code spans as implicitly protected (never spellchecked/reformatted); `agent-ignore` fences extend the same guarantee to arbitrary prose |
+| NFR-17 | When run in a container, the file watcher must use a polling observer (not native FS-event APIs) to reliably see edits to a bind-mounted vault; the MCP/REST control-plane port must be published bound to the host loopback only, never `0.0.0.0` |
 
 ## 5. Explicitly out of scope (for now)
 - Pushing librarian's safety-net commits to any remote.

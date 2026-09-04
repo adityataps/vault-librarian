@@ -526,3 +526,59 @@ tests/
   deliberately deferred rather than solved upfront, since concurrency=1
   keeps the initial implementation simple and correctness-first.
 
+## 8. Deployment & runtime
+No external database *servers* to stand up — LanceDB and SQLite
+(via `aiosqlite`) are both embedded, file-based libraries persisting under
+`~/.vault-librarian/<vault-id>/`, and git is invoked as a subprocess/library
+call, not a daemon. The entire system (watcher, dispatcher, scheduler,
+MCP/REST control plane) is **one long-running process**, so "how to run
+this" is a single-process deployment question, not multi-service
+orchestration.
+
+### 8.1 Native background service (recommended default, vault on the same Mac)
+- Install via `uv tool install vault-librarian` (or `pipx`); register as a
+  macOS `launchd` **user agent**
+  (`~/Library/LaunchAgents/com.vault-librarian.plist`) invoking
+  `vault-librarian run --vault <path>`, with `RunAtLoad` + `KeepAlive` for
+  auto-start/auto-restart and stdout/stderr redirected to a log file.
+  Linux equivalent: a systemd `--user` unit.
+- Preferred by default because `watchdog` then uses native OS file-event
+  APIs directly against the real filesystem (FSEvents on macOS, inotify on
+  Linux) — no virtualization/translation layer between the watcher and the
+  vault.
+- Node.js + `mmdc` (mermaid CLI, used by the 4.3 validation cascade) is a
+  documented host prerequisite, checked at startup with a clear error if
+  missing rather than failing obscurely on first mermaid block.
+- The single-instance PID lockfile (4.17) still applies, protecting against
+  a duplicate `launchctl load` or a manual `vault-librarian run` racing the
+  managed instance.
+
+### 8.2 Containerized (podman / podman-compose) — remote vault or full reproducibility
+- Useful when the vault lives on a NAS/remote box, or the whole toolchain
+  (Python, Node/mmdc, pinned deps) should be reproducible without touching
+  host installs.
+- Bind-mount the vault directory and the external state directory
+  (`~/.vault-librarian`) into the container; both need read-write access.
+- **FS-event caveat**: Podman on macOS runs containers inside a Linux VM
+  (`podman machine`), so a bind-mounted host directory is not watched via
+  native FSEvents from inside that VM. `watchdog` must fall back to its
+  `PollingObserver` (a config flag) to reliably observe host-side edits,
+  trading a small added latency (poll interval, e.g. 1s) for correctness.
+  This caveat doesn't apply on a native Linux host.
+- **Control-plane binding caveat**: 4.15's `127.0.0.1`-only bind assumes the
+  MCP/REST server and its clients (Claude Desktop, Copilot CLI) share a
+  loopback. Inside a container, `127.0.0.1` is the container's own
+  namespace, not the host's — publish the port pinned to the host loopback
+  explicitly (`podman run -p 127.0.0.1:8765:8765 ...`), never to `0.0.0.0`.
+- Ollama, if configured as a provider, is treated as an independent,
+  already-running endpoint (native app or its own container) referenced via
+  `base_url` in `Config.md` — vault-librarian does not start, stop, or
+  otherwise manage Ollama's lifecycle.
+- A `podman-compose.yml` for the service (and, optionally, an
+  `ollama/ollama` sidecar) is a Phase 1 implementation deliverable, not
+  something to hand-author at design time.
+
+**Default recommendation**: native `launchd` agent for the common case
+(vault and Obsidian on the same Mac); containerized only when the vault is
+remote or cross-machine reproducibility matters more than FS-event latency.
+

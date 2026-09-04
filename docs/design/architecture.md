@@ -177,16 +177,18 @@ vault-librarian:
   skip: [spellcheck, backlink]
 ```
 
-### 4.5 Inline "ignore" fences (MVP)
+### 4.5 Inline "ignore" fences (Phase 2)
 A lighter-weight companion to the frontmatter opt-out (4.4): frontmatter
 `skip` is whole-file and per-workflow; sometimes what's needed is
 per-region protection for a specific paragraph, quote, or snippet — one
 that should still travel with the content if it's copied/moved elsewhere.
+Grouped with the other agent directives below (4.6) as a Phase 2 feature
+since it shares their invisible-HTML-comment convention and directive-like
+fence syntax, even though — unlike `<agent-research>` et al. — it needs no
+LLM call or `pending`/`running`/`done` lifecycle state; it's a pure
+"don't touch" marker, not a task.
 
-Uses the same invisible HTML-comment marker convention as the directives
-in 4.6 (hidden in Reading/Live Preview, visible in Source mode), but with
-no LLM action or lifecycle state attached — it's a pure "don't touch"
-zone, not a task:
+Marker syntax (identical to the example format shown for directives below):
 
 ```html
 <!-- agent-ignore -->

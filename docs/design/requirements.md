@@ -18,10 +18,6 @@ aware (deterministic-first, model tiering, throttled concurrency).
   - Frontmatter updates
   - Spellcheck
   - Mermaid diagram validation (+ fix cascade, see below)
-- Inline `<!-- agent-ignore -->...<!-- /agent-ignore -->` fences protecting
-  a specific region's content from all (or, via an optional `workflows=`
-  attribute, selected) reactive workflows — a finer-grained, portable
-  complement to the frontmatter opt-out.
 - Quiescence-based debounce (per-file timer, resets on new writes).
 - Vault-resident `Config.md`, hot-reloaded on save. Drives:
   - Per-workflow enable/disable
@@ -51,6 +47,12 @@ aware (deterministic-first, model tiering, throttled concurrency).
   - Lifecycle: `pending → running → done`, re-runnable by resetting status.
   - Original prompt preserved in a hidden attribute for re-runs.
   - Results carry timestamp + model-used for staleness tracking.
+- Inline `<!-- agent-ignore -->...<!-- /agent-ignore -->` fences protecting
+  a specific region's content from all (or, via an optional `workflows=`
+  attribute, selected) reactive workflows and the directive scanner — a
+  finer-grained, portable complement to the frontmatter opt-out. Grouped
+  with the other directives since it shares their invisible-HTML-comment
+  convention, even though it needs no LLM call or lifecycle state.
 - Vault-wide vector KB (LanceDB, embedded, external to vault), incrementally
   indexed; throttled backfill via the same concurrency=1 queue.
 
@@ -106,7 +108,7 @@ aware (deterministic-first, model tiering, throttled concurrency).
 | FR-24 | Batch all applicable reactive workflows for a settle-event into one read/transform/write/commit pipeline, not one cycle per workflow | 1 |
 | FR-25 | Skip all workflow processing on a file containing unresolved merge-conflict markers (`<<<<<<<`/`=======`/`>>>>>>>`) until the user resolves them | 1 |
 | FR-26 | Detect when a save reverts a file to a previously recorded pre-transform (`input_hash`) state for a workflow, and skip reapplying that workflow rather than fighting the user; log the detection and the frontmatter opt-out to make suppression permanent | 1 |
-| FR-27 | Support `<!-- agent-ignore -->...<!-- /agent-ignore -->` fences (optionally scoped via `workflows="..."`) as a shared segmentation pre-pass excluding protected spans from all text-mutating reactive workflows and the directive scanner | 1 |
+| FR-27 | Support `<!-- agent-ignore -->...<!-- /agent-ignore -->` fences (optionally scoped via `workflows="..."`) as a shared segmentation pre-pass excluding protected spans from all text-mutating reactive workflows and the directive scanner | 2 |
 
 ## 4. Non-functional requirements
 

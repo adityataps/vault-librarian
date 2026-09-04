@@ -109,11 +109,28 @@ flowchart TB
   generates, preventing infinite reprocessing loops.
 
 ### 4.2 Dispatcher
-- Single sequential worker consuming a FIFO queue of `(file, workflow)`
-  tasks — global concurrency = 1. No per-file locking is needed because
-  nothing runs concurrently.
+- Single sequential worker consuming a FIFO queue of `(file)` tasks —
+  global concurrency = 1. No per-file locking is needed because nothing
+  runs concurrently.
+- **Batched pipeline, not one task per workflow.** Each settle-event task
+  runs *all* applicable reactive workflows for that file in one in-memory
+  pipeline against a single read: frontmatter normalize → format →
+  spellcheck → backlink/tag → mermaid validate/fix → directive scan. This
+  yields a single write, a single clobber check, and a single commit per
+  settle-event instead of one of each per workflow — shrinking the
+  concurrent-edit race window and cutting git noise. (Directive execution
+  that requires an LLM run, e.g. `<agent-research>`, is a separate task
+  type — see 4.5 — since it only fires when a pending directive block
+  exists, not on every save; if multiple directives are pending in one
+  file they're still batched into one read/write/commit cycle.)
 - Looks up per-file automation eligibility (frontmatter toggle) and
   per-workflow model tier from `Config.md` before enqueuing.
+- **Conflict-marker guard**: if a file contains unresolved merge-conflict
+  markers (`<<<<<<<`, `=======`, `>>>>>>>` at line start — e.g. from the
+  user's own `git pull --rebase`/merge outside the service), no workflow
+  in the pipeline runs against it. Applying formatting/spellcheck inside a
+  conflict block would be meaningless and could make the conflict worse;
+  the file is simply left alone until the user resolves it.
 - **Live-edit clobber guard**: the file's mtime/hash is snapshotted when a
   task starts. Immediately before writing the result back, the dispatcher
   re-checks the on-disk mtime/hash — if it changed (the user kept typing
@@ -121,6 +138,19 @@ flowchart TB
   file is re-enqueued (re-debounced) instead of overwriting newer content.
   This is the mechanism that prevents lost keystrokes; the git safety net
   (4.8) only protects history *after* a write, not concurrent edits.
+- **Revert detection (user vs. agent disagreement)**: the `file_state`
+  table (4.18) records, per `(file, workflow)`, both the input hash a
+  transform was applied to and the output hash it produced. If a new
+  save's content hash matches a previously recorded *input* (pre-fix) hash
+  for a workflow, that's recognized as the user having deliberately
+  reverted the agent's change — the workflow is skipped for that run (not
+  silently reapplied, which would fight the user), and Activity Log notes
+  it plainly along with how to make the suppression permanent (the
+  frontmatter `skip` list in 4.4). This only applies to the exact-revert
+  case; unrelated edits that happen to touch the same file are processed
+  normally. All agent/org-agent tasks share this same single queue and
+  guards — there is no separate concurrent execution lane to reconcile
+  against.
 
 ### 4.3 Reactive workflows (MVP)
 Formatting, backlinking/tagging suggestions, frontmatter updates, spellcheck,
@@ -167,6 +197,16 @@ Azure Service Bus pricing
   `<agent-diagram>` (mermaid generation), following the same lifecycle.
 - Results carry a timestamp + model-used, so stale research can later be
   flagged for refresh.
+- Directive execution is its own queue task type (distinct from the
+  reactive-workflow pipeline in 4.2, since it only fires when a
+  `status:pending` block exists rather than on every save), but is subject
+  to the exact same guards: one read/write/commit cycle batches *all*
+  pending directives in a file, the live-edit clobber guard discards a
+  stale run if the user edits the prompt mid-execution (a fresh task with
+  the new prompt is already queued from that edit), and the conflict-marker
+  guard applies equally. Because directive markers are plain editable text,
+  the user can always override the agent by editing or deleting a block —
+  no separate conflict-resolution mechanism is needed there beyond that.
 
 ### 4.6 Vector KB (Phase 2)
 LanceDB, embedded/file-based, stored outside the vault. Indexed
@@ -194,8 +234,9 @@ mechanism needed.
   separate automated history from manual edits in `git log`/`git blame`.
 - Scoped `git add <touched files>` only — never `-A` — so it can never sweep
   up the user's own unstaged work.
-- One commit per workflow run (or one atomic multi-file commit for org-agent
-  transactions), message format `vault-librarian(<workflow>): <file>`.
+- One commit per settle-event batch (or one atomic multi-file commit for
+  org-agent transactions), message lists every workflow that touched the
+  file this run, e.g. `vault-librarian(format,spellcheck): Note.md`.
 - Attachments folder(s) are `.gitignore`d (see 4.10) — safety-net commits
   only ever touch `.md` files anyway.
 
@@ -359,11 +400,15 @@ rather than crashing the service.
 but before committing, the working tree is left dirty. On startup, before
 the watcher starts: run `git status --porcelain` and auto-commit any dirty
 file as `vault-librarian(recovery): <file>` so the tree is clean before
-normal operation resumes. A `file_state(path, last_processed_hash,
-last_processed_at)` table in the job DB means a restart doesn't reprocess
-the whole vault — only files whose content hash changed since the last
-known-processed state get caught up in a bounded, throttled startup scan
-(same concurrency=1 queue, no separate rate-limit mechanism needed).
+normal operation resumes. A `file_state(path, workflow, input_hash,
+output_hash, processed_at)` table in the job DB (one row per file+workflow,
+recording both the pre-transform and post-transform content hash) means a
+restart doesn't reprocess the whole vault — only files whose content hash
+changed since the last known `output_hash` get caught up in a bounded,
+throttled startup scan (same concurrency=1 queue, no separate rate-limit
+mechanism needed). The same table drives revert-detection (4.2): a new
+save matching a prior `input_hash` for a workflow is recognized as a
+deliberate user revert rather than reprocessed.
 
 **LanceDB/SQLite are single-writer by construction** — safe because the
 PID lock guarantees exactly one process per vault. The job DB still runs

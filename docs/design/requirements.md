@@ -99,6 +99,9 @@ aware (deterministic-first, model tiering, throttled concurrency).
 | FR-21 | Single-instance PID lockfile per vault (prevents two service instances writing concurrently) | 1 |
 | FR-22 | Unified FastAPI control plane (MCP protocol + `/status`, `/jobs`, `/run` REST routes), `127.0.0.1`-bound; CLI live-commands are thin HTTP clients against it | 1 |
 | FR-23 | Startup reconciliation: auto-commit any dirty working tree as `vault-librarian(recovery): <file>` before the watcher starts; bounded catch-up scan using a `file_state` last-processed-hash table (no full reprocessing on restart) | 1 |
+| FR-24 | Batch all applicable reactive workflows for a settle-event into one read/transform/write/commit pipeline, not one cycle per workflow | 1 |
+| FR-25 | Skip all workflow processing on a file containing unresolved merge-conflict markers (`<<<<<<<`/`=======`/`>>>>>>>`) until the user resolves them | 1 |
+| FR-26 | Detect when a save reverts a file to a previously recorded pre-transform (`input_hash`) state for a workflow, and skip reapplying that workflow rather than fighting the user; log the detection and the frontmatter opt-out to make suppression permanent | 1 |
 
 ## 4. Non-functional requirements
 
@@ -118,6 +121,7 @@ aware (deterministic-first, model tiering, throttled concurrency).
 | NFR-12 | No OS-level locks are placed on vault note files (Obsidian would not honor them); concurrency safety against external writers relies solely on the optimistic clobber guard (NFR-8) |
 | NFR-13 | All git repository mutations (workflow commits, scheduled backup push, CLI/MCP rollback) serialize through a single lock, independent of the workflow queue's own concurrency=1 |
 | NFR-14 | `Config.md` changes are parsed and fully validated before swapping the in-memory config; on validation failure the previous config remains active and the error is logged |
+| NFR-15 | All agent-originated tasks (reactive pipeline, directive execution, org-agent actions) share one global queue — there is no separate concurrent execution lane between agent types to reconcile |
 
 ## 5. Explicitly out of scope (for now)
 - Pushing librarian's safety-net commits to any remote.

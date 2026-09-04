@@ -114,6 +114,13 @@ flowchart TB
   nothing runs concurrently.
 - Looks up per-file automation eligibility (frontmatter toggle) and
   per-workflow model tier from `Config.md` before enqueuing.
+- **Live-edit clobber guard**: the file's mtime/hash is snapshotted when a
+  task starts. Immediately before writing the result back, the dispatcher
+  re-checks the on-disk mtime/hash — if it changed (the user kept typing
+  while the workflow/LLM call was in flight), the write is aborted and the
+  file is re-enqueued (re-debounced) instead of overwriting newer content.
+  This is the mechanism that prevents lost keystrokes; the git safety net
+  (4.8) only protects history *after* a write, not concurrent edits.
 
 ### 4.3 Reactive workflows (MVP)
 Formatting, backlinking/tagging suggestions, frontmatter updates, spellcheck,
@@ -225,6 +232,10 @@ Distinct concern from the safety net above:
 - **Model tiering** is configurable per workflow in `Config.md` with
   sensible defaults (cheap/fast model for reactive workflows, stronger
   model for research/org-agent).
+- **Resilience is generic, not just for the mermaid fix cascade**: every
+  LiteLLM call goes through a shared `tenacity`-based retry wrapper —
+  exponential backoff on 429/5xx/timeout, capped attempts, both configurable
+  per-provider in `Config.md` (`timeout_seconds`, `max_retries`).
 
 ### 4.12 Job/run state
 SQLite (SQLAlchemy + aiosqlite), stored in the external state directory
@@ -242,12 +253,58 @@ job-history UI/CLI inspection.
 ### 4.14 MCP Server
 Exposes workflows as on-demand tools to Copilot, Claude, and other MCP
 clients, backed by the same dispatcher/queue as reactive/scheduled runs.
+Binds to `127.0.0.1` only by default (not exposed on the network); an
+optional bearer token in `Config.md` gates access for later remote/tunneled
+use, but is off by default since MVP usage is local-only.
 
 ### 4.15 CLI
 Typer-based. Service lifecycle, one-off workflow invocation, job history
 inspection, and a `--dry-run` mode — important given the prior
 implementation's reliability issues — to validate workflows against a real
-vault copy before trusting them live.
+vault copy before trusting them live. Also provides user-friendly wrappers
+around the git safety net so raw `git` isn't required day-to-day:
+`vault-librarian log <file>` (show librarian's edit history for a file) and
+`vault-librarian rollback <file> [--commit <sha>]` (revert to a prior
+automated or manual state).
+
+### 4.16 Vault identification & state layout
+- The vault is pointed at explicitly: `--vault <path>` CLI arg or
+  `VAULT_LIBRARIAN_VAULT` env var. No auto-discovery for MVP.
+- State directory is keyed by a hash of the vault's resolved real path:
+  `~/.vault-librarian/<sha256(realpath)[:12]>/` (job DB, vector KB, logs).
+- A small `~/.vault-librarian/vaults.json` maps hash → path so
+  `vault-librarian list` can show known vaults in human-readable form.
+
+### 4.17 `Config.md` schema
+A fenced YAML block inside `Librarian/Config.md` — human-editable directly
+in Obsidian, hot-reloaded on save:
+
+```yaml
+debounce_seconds: 20
+workflows:
+  format: {enabled: true, model: fast}
+  backlink: {enabled: true, model: fast}
+  frontmatter: {enabled: true, model: fast}
+  spellcheck: {enabled: true, model: fast}
+  mermaid: {enabled: true, model: fast}
+  research_directive: {enabled: true, model: strong}
+  org_agent: {enabled: false, model: strong, schedule: "0 6 * * *"}
+models:
+  fast: {provider: github_copilot, model: gpt-4.1-mini, timeout_seconds: 30, max_retries: 3}
+  strong: {provider: anthropic, model: claude-sonnet, timeout_seconds: 60, max_retries: 3}
+ignore_paths:
+  - Attachments/
+  - .obsidian/
+  - Templates/
+backup:
+  enabled: false
+  remote: null
+  schedule: "0 3 * * *"
+mcp:
+  enabled: false
+  bind: 127.0.0.1
+  token: null
+```
 
 ## 5. Tech stack summary
 
@@ -265,9 +322,55 @@ vault copy before trusting them live.
 | API/MCP | FastAPI + MCP Python SDK |
 | CLI | Typer |
 | Config | Pydantic Settings (service-level) + vault-resident `Config.md` (user-tunable, hot-reloaded) |
+| Retry/backoff | tenacity (wraps all LiteLLM calls) |
 
-## 6. Open items for later phases
+## 6. Package structure
+
+```
+src/vault_librarian/
+  cli.py              # Typer entrypoints: start, stop, run, log, rollback, list, dry-run
+  config.py           # Config.md parsing, validation, hot-reload
+  state.py            # vault_id resolution, ~/.vault-librarian/<hash>/ layout, vaults.json
+  watcher.py          # watchdog observer, ignore-list filtering
+  dispatcher.py       # quiescence debounce, FIFO queue, single worker, clobber guard
+  git_safety.py       # scoped commits, distinct author, rollback helpers
+  backup.py           # scheduled remote push + attachment rsync leg
+  workflows/
+    format.py
+    backlink.py
+    frontmatter.py
+    spellcheck.py
+    mermaid.py        # parse -> deterministic autofix -> LLM-fix cascade
+  directives/
+    engine.py          # pending/running/done lifecycle, HTML-comment parsing
+    research.py
+    do.py
+    diagram.py
+  agents/
+    org_agent.py        # LangGraph graph, Todo.md read/write
+  llm/
+    factory.py          # LiteLLM wrapper + tenacity retry policy
+  kb/
+    vector_store.py     # LanceDB
+  jobs/
+    models.py           # SQLAlchemy models
+    store.py
+  mcp_server.py          # FastAPI + MCP SDK, 127.0.0.1-bound
+  logging_setup.py       # tiered stdout logging
+tests/
+  fixtures/vault/        # small sample Obsidian vault for integration tests
+  unit/                  # per-workflow, deterministic-first, mocked LLM (litellm mock_response)
+  integration/            # watcher -> dispatcher -> git_safety, using fixtures/vault
+```
+
+## 7. Open items for later phases
 - Obsidian companion plugin (subsumes the "nice-to-have" terminal/web UI;
   bigger investment — separate TS/JS codebase against the Obsidian Plugin
   API) — deferred past Phase 3's Todo.md checkbox approach.
 - Multi-vault support (one service instance managing several vaults).
+- Splitting the single global queue into per-workflow-class queues (reactive
+  vs. directive vs. org-agent) if a long-running directive (e.g. deep
+  research) is found to unacceptably block reactive workflows in practice —
+  deliberately deferred rather than solved upfront, since concurrency=1
+  keeps the initial implementation simple and correctness-first.
+

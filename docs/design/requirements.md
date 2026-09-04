@@ -88,6 +88,8 @@ aware (deterministic-first, model tiering, throttled concurrency).
 | FR-10 | Vault-resident Failed Processing log after retry exhaustion | 1 |
 | FR-11 | Support `github_copilot`, `anthropic`, `ollama` as LLM providers via LiteLLM | 1 |
 | FR-12 | `--dry-run` CLI mode | 1 |
+| FR-19 | `vault-librarian log <file>` / `rollback <file> [--commit <sha>]` CLI commands wrapping the git safety net | 1 |
+| FR-20 | Explicit vault targeting via `--vault <path>` / `VAULT_LIBRARIAN_VAULT` env; external state keyed by hash of vault realpath, tracked in `~/.vault-librarian/vaults.json` | 1 |
 | FR-13 | Inline agent directives with pending/running/done lifecycle, invisible via HTML comments | 2 |
 | FR-14 | Vault-wide vector KB, incrementally indexed | 2 |
 | FR-15 | Scheduled organizational agent proposing changes to `Todo.md` | 3 |
@@ -106,6 +108,9 @@ aware (deterministic-first, model tiering, throttled concurrency).
 | NFR-5 | No secrets in vault content; API keys via `.env`/OS keychain; Copilot uses OAuth device flow (no static key) |
 | NFR-6 | Cold-start backfill on an existing large vault must not burst-call the LLM API — same throttled concurrency=1 queue applies |
 | NFR-7 | Model tier configurable per workflow type, with sensible defaults (cheap/fast for reactive workflows, stronger for research/org-agent) |
+| NFR-8 | Dispatcher must not overwrite a file whose on-disk mtime/hash changed since the workflow task started (live-edit clobber guard) — abort and re-debounce instead |
+| NFR-9 | All LiteLLM calls go through a shared retry/backoff policy (tenacity: exponential backoff on 429/5xx/timeout, capped attempts), configurable per-provider |
+| NFR-10 | MCP server binds to `127.0.0.1` only by default; optional bearer token gates any future remote/tunneled exposure |
 
 ## 5. Explicitly out of scope (for now)
 - Pushing librarian's safety-net commits to any remote.

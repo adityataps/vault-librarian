@@ -96,6 +96,9 @@ aware (deterministic-first, model tiering, throttled concurrency).
 | FR-16 | Atomic multi-file git commits for org-agent executions | 3 |
 | FR-17 | MCP server exposing workflows on demand | 4 |
 | FR-18 | Scheduled git-remote backup + attachment rsync leg | 4 |
+| FR-21 | Single-instance PID lockfile per vault (prevents two service instances writing concurrently) | 1 |
+| FR-22 | Unified FastAPI control plane (MCP protocol + `/status`, `/jobs`, `/run` REST routes), `127.0.0.1`-bound; CLI live-commands are thin HTTP clients against it | 1 |
+| FR-23 | Startup reconciliation: auto-commit any dirty working tree as `vault-librarian(recovery): <file>` before the watcher starts; bounded catch-up scan using a `file_state` last-processed-hash table (no full reprocessing on restart) | 1 |
 
 ## 4. Non-functional requirements
 
@@ -111,6 +114,10 @@ aware (deterministic-first, model tiering, throttled concurrency).
 | NFR-8 | Dispatcher must not overwrite a file whose on-disk mtime/hash changed since the workflow task started (live-edit clobber guard) — abort and re-debounce instead |
 | NFR-9 | All LiteLLM calls go through a shared retry/backoff policy (tenacity: exponential backoff on 429/5xx/timeout, capped attempts), configurable per-provider |
 | NFR-10 | MCP server binds to `127.0.0.1` only by default; optional bearer token gates any future remote/tunneled exposure |
+| NFR-11 | The workflow/job queue is an ordered set keyed by file path (not a plain FIFO) — a file already pending has its snapshot updated in place rather than being enqueued twice |
+| NFR-12 | No OS-level locks are placed on vault note files (Obsidian would not honor them); concurrency safety against external writers relies solely on the optimistic clobber guard (NFR-8) |
+| NFR-13 | All git repository mutations (workflow commits, scheduled backup push, CLI/MCP rollback) serialize through a single lock, independent of the workflow queue's own concurrency=1 |
+| NFR-14 | `Config.md` changes are parsed and fully validated before swapping the in-memory config; on validation failure the previous config remains active and the error is logged |
 
 ## 5. Explicitly out of scope (for now)
 - Pushing librarian's safety-net commits to any remote.

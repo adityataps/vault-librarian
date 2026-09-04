@@ -306,6 +306,70 @@ mcp:
   token: null
 ```
 
+### 4.18 Concurrency & locking (LLD)
+
+**Queue is an ordered set keyed by path, not a plain FIFO.** Debounce is
+implemented as one `asyncio.Task` per pending path doing
+`sleep(debounce_seconds)` then enqueue; a new event for the same path
+cancels and restarts that task (standard asyncio debounce pattern). The
+queue itself is a `dict[Path, Task]` (insertion-ordered) — if a file is
+already sitting in the queue (debounced but not yet picked up by the
+worker) and a new save arrives first, its snapshot is updated in place
+rather than appending a second entry, so the same file is never processed
+twice back-to-back for one burst of edits. The single worker coroutine
+(`while True: path = queue.popleft(); await process(path)`) is what
+enforces global concurrency = 1. Slow tasks (e.g. a research directive)
+will head-of-line-block quick ones behind them — accepted for MVP (see the
+deferred per-class-queue item in §7), but queue depth + current task are
+exposed via the status endpoint (below) so a stuck run is visible.
+
+**No OS-level locks on the notes themselves.** Obsidian's own save doesn't
+know or coordinate with an external `flock` on a note, so a lock file
+there would be theater. The real protection against a concurrent
+third-party writer is the **clobber guard** in §4.2 (optimistic
+concurrency: recheck mtime/hash immediately before write) — locking simply
+isn't available against a writer that doesn't participate in it.
+
+**What *is* actually locked:**
+- **Git repository mutations** — the worker's per-run commits, the
+  scheduled backup push, and any CLI/MCP-triggered rollback are three
+  different call sites touching the same repo. All three go through a
+  single `asyncio.Lock` so, e.g., a scheduled backup push can never race a
+  workflow's commit.
+- **Single-instance guard** — a PID lockfile
+  (`~/.vault-librarian/<hash>/vault-librarian.lock`, acquired via
+  `fcntl.flock`) prevents two `vault-librarian start` invocations against
+  the same vault from both running watchers/writers concurrently.
+
+**CLI/MCP share one control plane.** Rather than a separate IPC protocol,
+the FastAPI process bound to `127.0.0.1` (§4.14) serves both the MCP
+protocol routes and a small REST control API (`/status`, `/jobs`, `/run`).
+CLI verbs that need the live service (`status`, `run <workflow> <file>`)
+are thin HTTP clients against it. `log`/`rollback` remain standalone git
+wrappers that work even when the service isn't running.
+
+**Config hot-reload is validate-then-swap.** `Config.md` changes are
+excluded from the reactive-workflow set (it's not processed like a note)
+but stays git-tracked as a normal user edit. On save: parse and
+pydantic-validate the full new config *before* swapping the in-memory
+object; on validation failure, keep the old config and log the error
+rather than crashing the service.
+
+**Crash recovery / idempotency.** If the process dies after writing a file
+but before committing, the working tree is left dirty. On startup, before
+the watcher starts: run `git status --porcelain` and auto-commit any dirty
+file as `vault-librarian(recovery): <file>` so the tree is clean before
+normal operation resumes. A `file_state(path, last_processed_hash,
+last_processed_at)` table in the job DB means a restart doesn't reprocess
+the whole vault — only files whose content hash changed since the last
+known-processed state get caught up in a bounded, throttled startup scan
+(same concurrency=1 queue, no separate rate-limit mechanism needed).
+
+**LanceDB/SQLite are single-writer by construction** — safe because the
+PID lock guarantees exactly one process per vault. The job DB still runs
+with `PRAGMA journal_mode=WAL` for future concurrent reads (e.g. a status
+API being polled while the worker writes).
+
 ## 5. Tech stack summary
 
 | Concern | Choice |

@@ -67,3 +67,18 @@ async def test_recover_dirty_tree_noop_when_clean(vault: Path):
     # already clean at this point.
     sha = await safety.recover_dirty_tree()
     assert sha is None
+
+
+async def test_dry_run_never_creates_a_repo_or_commits(vault: Path):
+    note = vault / "Note.md"
+    note.write_text("hello\n", encoding="utf-8")
+
+    safety = GitSafetyNet(vault, dry_run=True)
+    assert safety.repo is None
+    assert not (vault / ".git").exists()
+    assert not (vault / ".gitignore").exists()
+
+    assert await safety.recover_dirty_tree() is None
+    assert await safety.commit_paths([note], "would commit") is None
+    assert await safety.log_history(note) == []
+    assert not (vault / ".git").exists()

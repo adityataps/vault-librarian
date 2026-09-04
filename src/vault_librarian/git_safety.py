@@ -27,14 +27,20 @@ DEFAULT_GITIGNORE_ENTRIES = [".obsidian/", ".trash/", ".librarian/"]
 class GitSafetyNet:
     """Wraps a vault's local git repo with scoped commits and a distinct librarian author."""
 
-    def __init__(self, vault_path: Path, ignore_paths: list[str] | None = None):
+    def __init__(self, vault_path: Path, ignore_paths: list[str] | None = None, dry_run: bool = False):
         self.vault_path = Path(vault_path)
         self._lock = asyncio.Lock()
+        self.dry_run = dry_run
         self.repo = self._ensure_repo(ignore_paths or [])
 
-    def _ensure_repo(self, ignore_paths: list[str]) -> Repo:
+    def _ensure_repo(self, ignore_paths: list[str]) -> Repo | None:
         if (self.vault_path / ".git").exists():
             return Repo(self.vault_path)
+        if self.dry_run:
+            logger.info(
+                "dry-run: would initialize a local git repo at %s (skipping)", self.vault_path
+            )
+            return None
         logger.info("initializing local git repo for vault at %s", self.vault_path)
         repo = Repo.init(self.vault_path)
         self._write_gitignore(ignore_paths)
@@ -52,6 +58,8 @@ class GitSafetyNet:
 
     def sync_gitignore(self, ignore_paths: list[str]) -> None:
         """Keep .gitignore matching the single ignore-list source of truth (design principle 3)."""
+        if self.repo is None:
+            return
         self._write_gitignore(ignore_paths)
 
     def _to_rel(self, path: Path) -> str:
@@ -67,6 +75,9 @@ class GitSafetyNet:
             return await asyncio.to_thread(self._commit_paths_sync, paths, message)
 
     def _commit_paths_sync(self, paths: list[Path], message: str) -> str | None:
+        if self.repo is None:
+            logger.info("dry-run: would commit %s (skipping, no repo)", message)
+            return None
         staged_any = False
         for path in paths:
             rel = self._to_rel(path)
@@ -88,6 +99,8 @@ class GitSafetyNet:
             return await asyncio.to_thread(self._recover_dirty_tree_sync)
 
     def _recover_dirty_tree_sync(self) -> str | None:
+        if self.repo is None:
+            return None
         if not self.repo.is_dirty(untracked_files=True):
             return None
         self.repo.git.add("-A")
@@ -104,6 +117,8 @@ class GitSafetyNet:
             return await asyncio.to_thread(self._log_history_sync, path, max_count)
 
     def _log_history_sync(self, path: Path, max_count: int) -> list[dict]:
+        if self.repo is None:
+            return []
         rel = self._to_rel(path)
         try:
             commits = list(self.repo.iter_commits(paths=rel, max_count=max_count))
@@ -124,6 +139,8 @@ class GitSafetyNet:
             return await asyncio.to_thread(self._rollback_sync, path, commit_sha)
 
     def _rollback_sync(self, path: Path, commit_sha: str | None) -> str:
+        if self.repo is None:
+            raise ValueError("No git history for this vault yet (never initialized).")
         rel = self._to_rel(path)
         if commit_sha is None:
             commits = list(self.repo.iter_commits(paths=rel, max_count=2))

@@ -112,7 +112,7 @@ async def _run_async(vault_path: Path, dry_run: bool, polling: bool) -> None:
         config_manager = ConfigManager(vault_path)
         config = config_manager.config
 
-        git_safety = GitSafetyNet(vault_path, ignore_paths=config.ignore_paths)
+        git_safety = GitSafetyNet(vault_path, ignore_paths=config.ignore_paths, dry_run=dry_run)
         recovered_sha = await git_safety.recover_dirty_tree()
         if recovered_sha:
             logger.warning("recovered dirty working tree on startup: %s", recovered_sha[:10])

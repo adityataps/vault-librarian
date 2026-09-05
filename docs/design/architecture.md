@@ -157,6 +157,10 @@ Formatting, backlinking/tagging suggestions, frontmatter updates, spellcheck,
 mermaid diagram validation. Each workflow is implemented as independently as
 possible from the others; deterministic workflows (formatting, frontmatter
 schema, mermaid syntax) do not invoke an LLM unless escalation is required.
+Backlinking here is intentionally narrow — wrapping an existing exact-title
+mention in a wikilink within the *same* file being processed. Broader,
+judgement-based cross-file linking (grouping related notes under a topical
+hub) is the org-agent's Map of Content responsibility instead (4.8).
 
 **Mermaid validation/fix cascade** (verify → fix → reverify, LLM last):
 1. Parse with the real mermaid parser (headless Node/`mermaid`/`mmdc`
@@ -253,7 +257,8 @@ Azure Service Bus pricing
 ### 4.7 Vector KB (Phase 2)
 LanceDB, embedded/file-based, stored outside the vault. Indexed
 incrementally on workflow runs; used by directive/org agents as
-vault-wide context. Cold-start backfill on a large existing vault is
+vault-wide context — including the org-agent's Map of Content (MOC)
+clustering (4.8). Cold-start backfill on a large existing vault is
 throttled by the same global concurrency=1 queue — no separate rate-limit
 mechanism needed.
 
@@ -261,11 +266,31 @@ mechanism needed.
 - Scheduled (APScheduler) full-vault review; proposes moves/renames/
   restructuring into `Librarian/Todo.md` as checkboxes (chosen over a custom
   Obsidian-plugin form UI — zero extra tooling, native Obsidian editing).
+- **Map of Content (MOC) maintenance**, using the vector KB (4.7) to find
+  topical clusters:
+  - Orphaned/loosely-connected notes that cluster semantically around a
+    topic with no existing hub note → propose creating a new MOC (e.g.
+    `Azure Cost Optimization MOC.md`) seeded with links to the cluster.
+  - A note that fits an *existing* MOC's topic but isn't yet linked from
+    it → propose appending it to that MOC's link list.
+  - Proposals go into `Todo.md` next to move/rename items, same
+    approve-in-place UX; execution updates the MOC file's link list (and,
+    for brand-new MOCs, creates the file) as part of the same atomic
+    multi-file commit as any renames it's bundled with.
+  - Deliberately kept out of the Phase 1 backlink workflow: backlink (4.3)
+    is a deterministic, single-file, exact-title-match text transform: it
+    never decides *whether two notes are topically related* (that needs
+    LLM judgement over the vector KB) and never writes to a file other
+    than the one that triggered it. MOC curation needs both, so it lives
+    with the org-agent's existing vault-wide/LLM/multi-file/approval
+    machinery instead of bolting cross-file writes onto a reactive
+    per-file workflow.
 - User checks/comments on proposals directly in `Todo.md`.
 - On save-debounce or schedule, the org agent executes approved items.
-- Multi-file operations (e.g. a rename touching backlinks across N files)
-  are committed as **one atomic git transaction**, so a revert undoes the
-  whole reorg cleanly, not a partial state.
+- Multi-file operations (e.g. a rename touching backlinks across N files,
+  or a MOC gaining a new linked note) are committed as **one atomic git
+  transaction**, so a revert undoes the whole reorg cleanly, not a partial
+  state.
 - Internal reasoning notes are kept as hidden markdown comments, invisible
   to the user when reading normally.
 

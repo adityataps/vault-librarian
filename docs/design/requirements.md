@@ -65,10 +65,18 @@ aware (deterministic-first, model tiering, throttled concurrency).
 - Scheduled full-vault review proposing moves/renames/restructuring into
   `Librarian/Todo.md` as checkboxes (native Obsidian editing — no custom
   plugin needed for MVP of this phase).
+- **Map of Content (MOC) maintenance**: identify topical clusters of
+  related/orphaned notes (using the vector KB from Phase 2) and propose
+  either a new MOC hub note or additions to an existing one's link list
+  in `Todo.md`, alongside the move/rename proposals. This is deliberately
+  *not* part of the Phase 1 backlink workflow — MOC curation needs
+  vault-wide topical judgement (an LLM call informed by the vector KB),
+  not a single file's exact-title-match text transform, and it writes to
+  a different file (the hub note) than the one that triggered it.
 - User approves/comments directly in `Todo.md`.
 - Execution on schedule or save-debounce; multi-file operations (e.g.
-  renames touching backlinks across files) committed as **one atomic git
-  transaction**.
+  renames touching backlinks across files, or adding a note to a MOC's
+  link list) committed as **one atomic git transaction**.
 - Internal agent reasoning kept as hidden markdown comments.
 
 ### Phase 4 — MCP server + on-demand access
@@ -116,6 +124,7 @@ aware (deterministic-first, model tiering, throttled concurrency).
 | FR-27 | Support `<!-- agent-ignore -->...<!-- /agent-ignore -->` fences (optionally scoped via `workflows="..."`) as a shared segmentation pre-pass excluding protected spans from all text-mutating reactive workflows and the directive scanner | 2 |
 | FR-28 | Check required prerequisites (Node.js + `mmdc`) at startup and fail with a clear, actionable error rather than an obscure failure on first mermaid block | 1 |
 | FR-29 | Provide a native background-service deployment path (macOS `launchd` user agent / Linux systemd `--user` unit) as the default, plus a documented podman/podman-compose alternative | 1 |
+| FR-30 | Organizational agent proposes Map of Content (MOC) hub-note creation/updates for topical clusters of related or orphaned notes (using the vector KB), presented in `Todo.md` for approval alongside move/rename proposals | 3 |
 
 ## 4. Non-functional requirements
 
